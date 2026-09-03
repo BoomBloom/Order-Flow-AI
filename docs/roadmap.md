@@ -13,19 +13,46 @@ Passing unit tests alone is not sufficient.
 
 ## Phase 0 — Repository foundation
 
-**Goal:** a repository that can hold serious work.
+**Goal:** a repository that can hold serious work. Nothing that touches data,
+features, strategies, simulation, or agents.
 
-- `pyproject.toml`, pinned toolchain, `ruff`, `mypy --strict`, `pytest`.
-- `src/ofa/core`: typed primitives — UTC-ns time, fixed-point price, tick
-  arithmetic, ids, versioning helpers, errors.
-- CI: lint, type check, test, and a check that `data/` stays gitignored.
-- `docs/features/` and `docs/experiments/` templates.
+### In scope — exact
 
-**Done when:** `make check` (or documented equivalent) passes on a clean
-clone, and core primitives have property tests (price/tick round-trips,
-timestamp conversions, no float leakage).
+- `pyproject.toml`, pinned toolchain, `ruff`, `mypy --strict`, `pytest`, CI.
+- `src/ofa/core/`: UTC-nanosecond time primitives; integer fixed-point price
+  with exact-only tick-grid conversion; id and run-id primitives; **stable**
+  content hashing for `params_hash`; error types; manifest primitives; the
+  provenance-tier enum (`OBSERVED`, `RECONSTRUCTED`, `INFERRED`,
+  `SIMULATED`); the `DataRequirement` enum.
+- **Protocol declarations only**, with zero implementations: `CanonicalEvent`
+  and `Feature` (`on_event` / `on_gap` / `on_reset` / `snapshot`, plus
+  `requires`, `lookback`, `roll_policy`).
+- `docs/limitations.md` kept current as the UNVERIFIED register.
 
-**No agents. No features. No strategies.**
+### Out of scope — exact
+
+Every vendor client; any data download; the event store; replay; reference
+data; any feature; any label; strategy; simulator; statistics; validation;
+registry; any agent; and any CLI command beyond `ofa version`. **No
+market-data SDK may appear in `pyproject.toml` at Phase 0.**
+
+### Exit criteria — exact
+
+1. `make check` (ruff + `mypy --strict` + pytest) is green on a clean clone
+   and is documented in the README.
+2. Property tests hold: price↔tick round-trips exactly; a price off the tick
+   grid raises rather than rounds; UTC-ns conversions round-trip; no float
+   appears in any price-typed path.
+3. `params_hash` is byte-identical across two **separate interpreter
+   processes** — this specifically catches Python's salted `hash()`, which
+   would silently break `feature_id` reproducibility forever.
+4. `ofa version` prints the code revision and every schema version.
+5. Two runs of the test suite produce identical artifacts.
+6. CI asserts `data/` is gitignored and that no market-data SDK is in the
+   dependency set.
+7. `docs/limitations.md` carries the current UNVERIFIED register.
+
+**No agents. No features. No strategies. No data.**
 
 ---
 
@@ -43,19 +70,22 @@ sessions), trades + BBO at minimum, MBP-10 if the chosen vendor tier allows.
 
 - Vendor adapter (the only vendor-aware module), raw capture with checksums
   and sidecar manifests.
-- Data quality checks (hard and soft) producing stored reports.
-- Normalization into canonical `Trade` / `Quote` / (`BookDelta`) events.
-- Partitioned Parquet event store with full manifests.
-- Deterministic readback and replay CLI: replay a session, print event
-  counts, session coverage, and a window of events around a given timestamp.
+- **L1a** raw structural quality checks; **L1b** post-normalization semantic
+  checks; both producing stored reports.
+- Normalization into canonical `Trade` / `Quote` / (`BookDelta`) events with
+  per-field provenance tiers.
+- Partitioned Parquet event store keyed on **`trade_date`**, with full
+  manifests including the **per-partition capability record**.
+- Deterministic readback and replay CLI, with capability assertion at read.
 
 **Real data, not synthetic substitutes.** No agents. No features.
 
-**Done when:** `ofa ingest`, `ofa quality`, `ofa normalize`, `ofa replay` all
-run from documented commands; replaying the same partition twice produces
+**Done when:** `ofa ingest`, `ofa quality`, `ofa normalize`, `ofa replay` run
+from documented commands; replaying the same partition twice produces
 byte-identical output; the capability matrix in
-`docs/data_specification.md` is filled in with verified yes/no values for the
-chosen vendor; limitations are written down.
+`docs/data_specification.md` §4 is filled in with verified values, verifier,
+date, and vendor-doc version for the chosen vendor — including **whether
+`ts_recv` is supplied**; limitations are recorded.
 
 ---
 
@@ -63,29 +93,30 @@ chosen vendor; limitations are written down.
 
 - Instrument registry from vendor definitions.
 - Exchange calendar with holidays and early closes; versioned.
-- `SessionDef` generation with segment boundaries per trade date.
-- Contract roll policy object; per-contract research prices; optional labelled
-  continuous series.
+- `SessionDef` generation and `trade_date` assignment per instrument. The
+  equity-index segmentation is not assumed to hold for 6E.
+- Contract roll policy object; per-contract research prices; optional
+  labelled continuous series.
 
-**Done when:** sessions for the Phase 1 date range are generated and
-inspected against exchange documentation, including at least one early-close
-and one roll week.
+**Done when:** sessions and `trade_date` assignments for the Phase 1 range
+are generated and checked against exchange documentation, including at least
+one early-close day, one holiday, and one roll week.
 
 ---
 
 ## Phase 3 — Feature engine core + first families
 
-- `Feature` protocol, registry, versioning, `feature_id` hashing.
+- `Feature` protocol implementation, registry, versioning, `feature_id`
+  hashing, capability-scoped event iterators, gap/reset handling, roll policy.
 - Feature runner (replay-driven), feature store with manifests.
-- Families: price/microstructure, VWAP (session + anchored), volume profile
-  (volume-at-price, POC, VAH/VAL, HVN/LVN).
+- Families: price/microstructure, VWAP (session + anchored), volume profile.
 - `prior_session.*` versus `developing.*` split enforced by tests.
 - One operational-definition document per feature in `docs/features/`.
 
 **Done when:** golden synthetic fixtures produce hand-verifiable values;
-property tests hold (profile mass conservation, VWAP monotonic in known
-constructions); a leakage test suite fails if a completed-session value is
-read inside its own session; feature output is byte-reproducible.
+property tests hold; a leakage suite fails if a completed-session value is
+read inside its own session; consuming an undeclared event type raises; a
+roll triggers the declared policy; feature output is byte-reproducible.
 
 ---
 
@@ -97,7 +128,7 @@ read inside its own session; feature output is byte-reproducible.
 - Liquidity (requires MBP-10; MBO for queue-level work): depth, depth
   imbalance, concentration, withdrawal, replenishment, stacking, pulling,
   sweeps, book pressure, migration.
-- Explicit handling of `aggressor = UNKNOWN` volume.
+- Explicit handling of `UNKNOWN` and `INFERRED` aggressor volume.
 
 **Done when:** every implemented concept has an operational-definition doc
 with the eight required sections, synthetic golden cases, and a stated
@@ -106,60 +137,74 @@ blocked rather than approximated.
 
 ---
 
-## Phase 5 — Strategy spec + event-driven backtester
+## Phase 5 — Labels, strategy spec, event-driven backtester
 
+- `src/ofa/labels/` as a separate pass with `label_horizon`; CI import check
+  that `features/` never imports it.
 - Strategy spec model and YAML validation; rules bound to pinned
   `feature_id`s.
-- Deterministic event loop; latency model; order arrival; fill logic against
-  future-only events; market and limit orders; queue models (optimistic and
-  conservative).
+- Deterministic event loop with the **`ts_recv` decision clock** (or
+  `ts_event + assumed_feed_delay_ns`, recorded); order latency; fill logic
+  against future-only events; market and limit orders; simulated queue models
+  (optimistic and conservative) with explicit cancel/replace, partial-fill,
+  priority-loss, and same-timestamp semantics.
 - Ledger and accounting in integer ticks; commissions and fees per
   instrument; session boundary and halt behaviour.
-- Run artifacts: orders, fills, positions, equity curve, and an event-replay
-  index for any signal.
+- Run artifacts: orders, fills, positions, equity curve, event-replay index.
 
 **Done when:** a trivial reference strategy on synthetic fixtures produces
 hand-computable PnL; a leakage test proves no fill consulted an event at or
-before order arrival; two runs of the same config are byte-identical; any
-single fill can be replayed with its preceding event window.
+before order arrival; a clock test proves no decision was taken before
+`ts_recv`; two runs of the same config are byte-identical; any single fill
+can be replayed with its preceding event window; every execution artifact is
+labelled `SIMULATED`.
 
 ---
 
 ## Phase 6 — Statistics and validation engine
 
-- Metrics suite (`docs/validation_protocol.md` §4) with bootstrap intervals.
+- Metrics suite with session-block bootstrap intervals.
 - Baseline generators (unconditional, time-of-day matched, random-entry
   matched, location-only, ablations).
-- Split machinery: discovery/confirmation/holdout, purged and embargoed CV,
-  walk-forward.
-- Stress: cost, slippage, latency, queue model.
-- Regime decomposition, parameter surfaces, block bootstrap, Monte Carlo.
+- **Split policy engine**: chronological block, interleaved block, purged
+  k-fold, combinatorial purged CV, cross-instrument, hybrid — with
+  label-horizon purging, embargo, per-segment warm-up, and fixed or
+  time-extending holdout.
+- Stress: cost, slippage, order latency, feed delay, queue model.
+- Regime and roll-week decomposition, parameter surfaces, block bootstrap,
+  Monte Carlo.
 - Multiple-testing adjustment; the gated verdict object.
 
 **Done when:** the full gate sequence runs on the Phase 5 reference strategy
-and correctly returns `FAILED` for a strategy known to be noise, with the
-failure reason naming the right gate.
+and correctly returns `FAILED` for a strategy known to be noise, naming the
+right gate; and a run whose experiment lacks pre-registered thresholds or a
+split policy is refused.
 
 ---
 
 ## Phase 7 — Registry, lineage, research memory
 
 - SQLite index + immutable artifacts + `docs/experiments/OF-XXXX.md` records.
-- Lineage foreign keys end to end; confirmation/holdout access logging;
-  hypothesis-family and variant bookkeeping.
-- Query CLI answering the §9 questions in `docs/research_protocol.md`.
+- Lineage foreign keys end to end; confirmation/holdout access logging by
+  calendar window; hypothesis-family assignment; registered variant counts
+  and the self-reported discovery search log.
+- Threshold and split-policy pre-registration enforcement.
+- Query CLI answering the questions in `docs/research_protocol.md` §12 —
+  this is also the tool that stands in for the deferred Orchestrator.
 
 **Done when:** every Phase 6 run is registered and a single command traces a
-conclusion back to raw bytes and code revision.
+conclusion back to raw bytes, capability record, and code revision.
 
 ---
 
 ## Phase 8 — Agent layer
 
-- Typed contracts and schema versioning; agent run logging with token/cost.
-- Orchestrator with mandatory registry lookup; conflict reports.
-- The five agents, each gated on the deterministic layer it advises.
-- Model routing table wired to roles; human-approval checkpoints enforced.
+- Typed contracts and schema versioning; agent run logging with profile
+  version, token usage, and cost.
+- **Three agents:** Research, Feature Specification (profiles
+  `market_structure`, `order_flow`, `liquidity`), Adversarial.
+- Model routing table wired to roles; human-approval checkpoints enforced;
+  human performs the orchestration workflow.
 
 **Done when:** an agent-proposed feature spec compiles into a real feature
 module through human review; a schema-invalid output is rejected; agent
@@ -171,19 +216,27 @@ agent import exists anywhere in the hot path.
 ## Phase 9 — First real experiment: OF-0001
 
 Run the full loop on a real hypothesis (candidate in
-`docs/research_protocol.md` §11), through every gate, and publish the record
+`docs/research_protocol.md` §14), through every gate, and publish the record
 — including if, and especially if, it fails.
 
-**Done when:** a complete experiment record exists with discovery,
-confirmation, robustness, multiple-testing context, verdict, and conclusion,
-reproducible from stored config.
+**Done when:** a complete experiment record exists with pre-registered
+thresholds and split policy, discovery, confirmation, robustness,
+multiple-testing context, verdict, and conclusion, reproducible from stored
+config.
 
 ---
 
 ## Phase 10 — Extension (only after Phase 9)
 
-In order: ES and 6E; additional hypothesis families; the paper-trading
-harness (live event source, simulated fills, replay-divergence alarm).
+In order: ES and 6E (with 6E's session structure verified, not assumed);
+additional hypothesis families; the paper-trading harness (live event source,
+simulated fills, historical/live capability compatibility check, replay-
+divergence alarm).
+
+**Orchestrator agent:** considered here at the earliest, and only if the
+deferral conditions in `docs/agent_architecture.md` §2.2 are met — the loop is
+operational, manual orchestration is demonstrably a bottleneck, and a written
+comparison shows what it adds over the human workflow plus the registry CLI.
 
 Explicitly **not** in scope until the loop is proven: live execution,
 autonomous trading, RL, neural prediction, automated strategy optimizers, GEX

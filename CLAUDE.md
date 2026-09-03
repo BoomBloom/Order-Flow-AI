@@ -32,12 +32,13 @@ separate, isolated, explicitly-enabled layer that does not exist yet.
 | Document | Authority over |
 | --- | --- |
 | `CLAUDE.md` (this file) | Working rules, precedence, definition of done |
-| `docs/architecture.md` | Layers, module boundaries, technology choices |
-| `docs/data_specification.md` | Canonical schemas, provenance, capability matrix |
-| `docs/research_protocol.md` | Hypothesis lifecycle, experiment registry, lineage |
-| `docs/validation_protocol.md` | Baselines, splits, robustness, acceptance gates |
-| `docs/agent_architecture.md` | Agent contracts, orchestration, model routing |
+| `docs/architecture.md` | Layers, module boundaries, technology choices, irreversible decisions |
+| `docs/data_specification.md` | Canonical schemas, provenance tiers, capability matrix |
+| `docs/research_protocol.md` | Hypothesis lifecycle, split policy, registry, lineage |
+| `docs/validation_protocol.md` | Baselines, gates, robustness, acceptance criteria |
+| `docs/agent_architecture.md` | Agent roster, typed contracts, model routing |
 | `docs/roadmap.md` | Phases, sequencing, per-phase definition of done |
+| `docs/limitations.md` | UNVERIFIED register and known limitations |
 
 If two documents conflict, the conflict is a bug. Fix the documents before
 writing code.
@@ -74,12 +75,24 @@ trades, book states, volume, session statistics, profile values, or labels.
 
 Highest-risk areas: completed-session statistics, rolling windows,
 normalization, profile construction, VWAP anchoring, label construction,
-resampling, event aggregation, contract roll adjustment.
+resampling, event aggregation, contract roll adjustment, and feature state
+carried across a split boundary.
 
 The architecture defends against this structurally: **features are
 event-streaming state machines and there is exactly one implementation of
 each feature**. Research "batch" computation is a replay of the same
 streaming code, never a vectorized re-derivation.
+
+Three leakage rules that are easy to violate silently:
+
+- **Decision clock.** Decisions are timestamped at `ts_recv` (when we could
+  have known), never at `ts_event` (when the exchange acted). See
+  `docs/architecture.md` §9.
+- **Labels.** Labels are computed in a separate, marked pass and are never
+  visible to a feature. Purge width is driven by the label horizon.
+- **Warm-up.** Every split segment begins with a burn-in in which events are
+  consumed but signals are discarded, at least as long as the longest feature
+  lookback in the spec.
 
 ## 4. Deterministic engine first
 
@@ -112,10 +125,20 @@ validation commentary, and other non-time-critical workflows.
 Never fabricate market data. Never approximate unavailable information and
 present it as equivalent to the real thing.
 
-If a feature requires data we do not have, say so, record it in the data
-capability matrix, and state the minimum additional data required. Synthetic
-data is permitted **only** as clearly labelled test fixtures under
-`tests/fixtures/synthetic/`, never as a research dataset.
+Every quantity carries a **provenance tier**:
+
+| Tier | Meaning |
+| --- | --- |
+| `OBSERVED` | Present in the vendor feed as delivered |
+| `RECONSTRUCTED` | Deterministically derived from observed data, no free parameters, no counterfactual (e.g. BBO from MBO) |
+| `INFERRED` | Derived by a heuristic that can be wrong (e.g. tick-rule aggressor side) |
+| `SIMULATED` | Counterfactual — describes a hypothetical order of ours that never existed (queue position, fill, slippage, latency) |
+
+Never describe a `SIMULATED` quantity as measured, or an `INFERRED` one as
+reconstructed. If a feature requires data we do not have, say so, record it
+in the data capability matrix, and state the minimum additional data
+required. Synthetic data is permitted **only** as clearly labelled test
+fixtures under `tests/fixtures/synthetic/`, never as a research dataset.
 
 ## 7. Reproducibility is a hard requirement
 
@@ -127,15 +150,25 @@ DATASET -> FEATURE VERSION -> HYPOTHESIS -> STRATEGY VERSION
         -> BACKTEST RUN -> VALIDATION RUN -> CONCLUSION
 ```
 
+## 8. Say which controls are enforced
+
+Every control in these documents is labelled **[ENFORCED]** (code refuses the
+invalid state) or **[PROCESS]** (a discipline we hold ourselves to, which
+code cannot check). Never present a process control as if it were enforced.
+Example: the registry can refuse a validation run whose thresholds are
+missing `[ENFORCED]`; it cannot stop a researcher plotting the confirmation
+sample in a notebook `[PROCESS]`.
+
 ---
 
 # ARCHITECTURE (summary)
 
 ```
 RAW DATA
-  -> DATA QUALITY
+  -> DATA QUALITY (L1a raw structural)
   -> NORMALIZATION
   -> CANONICAL EVENTS
+  -> DATA QUALITY (L1b post-normalization semantic)
   -> FEATURE ENGINE
   -> MARKET CONTEXT
   -> HYPOTHESIS
@@ -147,16 +180,30 @@ RAW DATA
   -> (LIVE EXECUTION — not built)
 ```
 
-Full detail: `docs/architecture.md`.
+Full detail: `docs/architecture.md`. The decisions that are expensive to
+reverse are listed explicitly in `docs/architecture.md` §16; changing one of
+them is a project-level decision, not an implementation detail.
 
 ---
 
 # AGENTS (summary)
 
-Orchestrator, Research, Market Structure, Order Flow, Liquidity,
-Validation/Adversarial. Six total. No others.
+Three active agent types:
 
-Before proposing a new agent it must pass the **Agent Existence Test**:
+1. **Research Agent** — literature, evidence grading, hypothesis generation.
+2. **Feature Specification Agent** — operationalizes ambiguous concepts, with
+   three versioned domain profiles: `market_structure`, `order_flow`,
+   `liquidity`.
+3. **Adversarial Agent** — attacks results, generates alternative
+   explanations.
+
+**Orchestrator: deferred.** Until the deterministic research loop is
+operational and there is evidence that automated orchestration beats a
+documented human workflow plus the registry query CLI, the orchestrator role
+is performed by a human. See `docs/agent_architecture.md` §2.
+
+Before proposing a new agent — or splitting an existing one — it must pass
+the **Agent Existence Test**:
 
 1. Why can't this be a deterministic function or service?
 2. What reasoning does it perform?
@@ -164,7 +211,8 @@ Before proposing a new agent it must pass the **Agent Existence Test**:
 4. What typed output does it produce?
 5. What breaks if we delete it?
 
-If those cannot be answered convincingly, do not create the agent.
+A domain difference alone is not an agent boundary; it is a **profile** on an
+existing agent. Question 5 must be answered without appealing to tidiness.
 
 Agents communicate through **versioned typed schemas**, not free prose.
 Agents never place trades and never produce numbers that deterministic code
@@ -178,16 +226,23 @@ Raw data is immutable. Derived data is reproducible and disposable.
 
 Every dataset records: source, source version, instrument, venue, date
 range, timezone, session definition, transformation version, feature
-version, generation timestamp, and code revision.
+version, generation timestamp, code revision, and its **capability record**
+(what this partition actually contains, per `docs/data_specification.md` §3).
 
 Canonical event types: `Trade`, `Quote`, `BookSnapshot`, `BookDelta`,
 `OrderEvent`, `InstrumentDef`, `SessionDef`, `StatusEvent`.
 
-Always distinguish **exchange timestamp**, **receive timestamp**, and
-**sequence number**. Preserve original event identity and ordering.
+Always distinguish **exchange timestamp** (`ts_event`), **receive
+timestamp** (`ts_recv`), and **sequence number**. Preserve original event
+identity and ordering.
 
-Prices are integers. Never compare prices as floats. Full detail:
-`docs/data_specification.md`.
+Partitions are keyed on **`trade_date`** — the exchange session date, not the
+UTC calendar date. A Globex session that opens Sunday evening belongs
+entirely to Monday's `trade_date`.
+
+Prices are integers. Never compare prices as floats. Conversions to the tick
+grid are exact-only: a price not representable on the grid is an error, never
+a rounding. Full detail: `docs/data_specification.md`.
 
 ---
 
@@ -201,6 +256,8 @@ Do not assume NQ, ES, 6E, crypto, and equities share market structure.
   model is used.
 - Spot FX has no globally centralized order book. For FX research, use the
   6E future.
+- Do not assume 6E shares the equity-index session model. Its session
+  structure is UNVERIFIED (`docs/limitations.md`).
 
 Market-specific behaviour lives behind the common interfaces defined in
 `docs/data_specification.md`; it is never hard-coded into feature logic.
@@ -209,7 +266,14 @@ Market-specific behaviour lives behind the common interfaces defined in
 
 # FEATURE ENGINE RULES
 
-Every feature is a versioned, deterministic, event-driven module.
+Every feature is a versioned, deterministic, event-driven module. It declares
+the data capability it requires and receives a **capability-scoped event
+iterator** — consuming an undeclared event type is a runtime error, not a
+silent success `[ENFORCED]`.
+
+Every feature defines behaviour for stream discontinuity (`on_gap`) and state
+reset (`on_reset`), including at contract roll. A feature that carries state
+across a roll must state whether it resets or carries, and why.
 
 Every ambiguous concept (absorption, exhaustion, aggression, acceptance,
 sweep, stacking) must define, before any use:
@@ -217,14 +281,23 @@ sweep, stacking) must define, before any use:
 1. Mathematical definition
 2. Units
 3. Event/time basis and window
-4. Required data granularity
+4. Required data granularity and provenance tier
 5. Parameters and their defaults
-6. Edge-case behaviour (session boundary, gap, halt, thin book, roll)
+6. Edge-case behaviour (session boundary, gap, halt, thin book, roll, reset)
 7. Known failure modes and interpretation limits
 8. Tests, including synthetic golden cases
 
 A feature without an operational definition may not be referenced by a
 strategy. "Large buying but price does not rise" is not a definition.
+
+**One implementation per concept.** An optimized implementation **replaces**
+the reference implementation; it never sits beside it. The prior version may
+be retained inside the test suite as an oracle, but it must not be importable
+from `src/`. There is never a second production code path for a feature.
+
+**Dataframes are confined to the storage boundary (L3 read/write) and to
+statistics (L9).** Features, the strategy evaluator, and the simulator
+consume event iterators and typed events — never a dataframe object.
 
 ---
 
@@ -248,11 +321,16 @@ forbidden unless it maps to a deterministic definition.
 
 - Order-flow strategies are not silently converted into candle-close
   strategies.
+- **The decision clock is `ts_recv`.** `ts_event` orders the stream; it never
+  triggers a decision. Where `ts_recv` is unavailable, an explicit
+  `assumed_feed_delay_ns` is added to `ts_event` and recorded per run.
 - Model timestamps, spread, commissions, slippage, latency, order type, fill
   logic, session boundaries.
 - No future order-book state may influence an earlier fill. A fill may only
   consult events strictly after the order's simulated exchange-arrival
   timestamp.
+- All fill, slippage, and queue-position quantities are `SIMULATED`. They are
+  never described as measured or observed.
 - A backtest run is immutable once written. Re-running produces a new run ID.
 
 ---
@@ -262,10 +340,22 @@ forbidden unless it maps to a deterministic definition.
 No strategy may be evaluated without a defined **baseline / null
 comparison**.
 
-Use, as appropriate: discovery/confirmation split, purged and embargoed
-cross-validation, walk-forward, parameter sensitivity, regime analysis,
-transaction-cost and slippage stress, sample-size analysis, block bootstrap
-and Monte Carlo, multiple-testing accounting.
+**Split policy is per-experiment configuration, not a constant.** It is
+pre-registered in the experiment record and supports chronological block
+splits (the default initial policy), interleaved block splits, purged and
+embargoed cross-validation, combinatorial purged CV, cross-instrument
+holdout, and time-extending holdout windows. Every scheme carries purge
+(driven by label horizon), embargo, and per-segment warm-up. See
+`docs/research_protocol.md` §4.
+
+**Acceptance thresholds are pre-registered at `FORMALIZED`** and stored in
+the experiment record. The registry refuses a validation run whose experiment
+lacks them `[ENFORCED]`.
+
+Use, as appropriate: parameter sensitivity, regime analysis,
+transaction-cost and slippage stress, latency and queue-model stress,
+sample-size analysis, block bootstrap (session-level blocks by default) and
+Monte Carlo, multiple-testing accounting.
 
 Evaluate expectancy, average R, profit factor, risk-adjusted return,
 drawdown, trade count, payoff distribution, skew, tail behaviour, exposure,
@@ -276,10 +366,12 @@ sufficient.** Full detail: `docs/validation_protocol.md`.
 
 # MULTIPLE TESTING
 
-The registry records the number of hypotheses tested, related hypothesis
-families, parameter variants, selection criteria, and every failed
-experiment. Never present the best result of a large search as though it
-were an isolated test.
+The registry records the number of hypotheses tested, the **hypothesis
+family** (defined in `docs/research_protocol.md` §8), parameter variants,
+selection criteria, every failed experiment, and a self-reported
+**discovery search log** covering exploration that never became a registered
+experiment. Never present the best result of a large search as though it were
+an isolated test.
 
 ---
 
@@ -313,7 +405,7 @@ Until the deterministic research loop is validated end to end, do not build:
 
 live execution, autonomous trading, reinforcement learning, neural
 prediction models, automated strategy optimizers, a GEX subsystem, a complex
-dashboard/UI, or multi-market optimization.
+dashboard/UI, multi-market optimization, or the Orchestrator agent.
 
 These are later phases. See `docs/roadmap.md`.
 
@@ -334,7 +426,8 @@ Before changing code:
 9. Report exactly what changed.
 
 Do not make unrelated refactors. Do not redesign architecture during an
-implementation task. Do not silently widen scope.
+implementation task. Do not silently widen scope. Do not change an item in
+`docs/architecture.md` §16 without an explicit decision.
 
 ## Code quality
 
@@ -353,8 +446,8 @@ and its failure mode.
 
 Before adding one: explain why it is needed, what the alternatives are, the
 maintenance implication, and only then add it. Never invent an external API
-or exchange capability. If unsure whether a vendor supports something,
-say so instead of assuming.
+or exchange capability. If unsure whether a vendor supports something, say
+so and record it in `docs/limitations.md` instead of assuming.
 
 ---
 

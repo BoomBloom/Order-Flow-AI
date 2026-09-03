@@ -26,10 +26,12 @@ follow.
    lifecycle, experiment records, lineage.
 5. [`docs/validation_protocol.md`](docs/validation_protocol.md) — how a
    strategy gets attacked, and what `VALIDATED` requires.
-6. [`docs/agent_architecture.md`](docs/agent_architecture.md) — the six
-   agents, their typed contracts, and why each one exists.
+6. [`docs/agent_architecture.md`](docs/agent_architecture.md) — the three
+   active agents, their typed contracts, and why each one exists.
 7. [`docs/roadmap.md`](docs/roadmap.md) — phases and per-phase definition of
    done.
+8. [`docs/limitations.md`](docs/limitations.md) — the UNVERIFIED register and
+   permanent known limitations.
 
 ## Scope
 
@@ -42,6 +44,11 @@ follow.
 - The hot path `EVENT -> FEATURE -> SIGNAL -> RISK -> ORDER` contains no LLM,
   no network call, and no agent.
 - Raw data is immutable; derived data is reproducible; nothing is fabricated.
-- Every experiment has a baseline, a falsification test, and a permanent
-  record — including failures.
+- Every quantity is labelled `OBSERVED`, `RECONSTRUCTED`, `INFERRED`, or
+  `SIMULATED`. Fills, slippage, and queue position are always `SIMULATED` and
+  are never described as measured.
+- Decisions are timestamped at `ts_recv` — when we could have known — never at
+  the exchange's `ts_event`.
+- Every experiment has a baseline, a falsification test, pre-registered
+  thresholds and split policy, and a permanent record — including failures.
 - A failed hypothesis is a successful research result.
