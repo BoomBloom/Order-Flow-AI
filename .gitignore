@@ -1,0 +1,31 @@
+# Market data and run artifacts — never committed
+data/
+*.dbn
+*.dbn.zst
+*.parquet
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
