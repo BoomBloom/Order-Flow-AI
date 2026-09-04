@@ -68,7 +68,24 @@ are verified.** Until then, limit-order results are exploratory only.
 
 ---
 
-## 5. KNOWN LIMITATIONS — permanent, must be stated in reports
+## 5. DEFERRED — decisions taken deliberately, not yet made
+
+Each of these is a decision the project has consciously postponed rather than
+overlooked. A deferral is closed by making the decision at its named gate, not
+by an implementer picking an answer while writing adjacent code.
+
+| # | Deferred item | Why it is not decided | Decided at |
+| --- | --- | --- | --- |
+| D1 | **Final `RunId` grammar.** The type enforces only single-path-component safety: non-empty, no path separator, not `.` or `..`, no whitespace or control character, UTF-8 encodable. The permitted alphabet, any maximum length, a Windows drive or alternate-stream colon, and the reserved device names (`CON`, `NUL`, `COM1`…) are **not** constrained. | The grammar belongs to the code that mints run ids, which does not exist. Fixing it now would be guessing. | Run lifecycle / storage design |
+| D2 | **`feature_id` construction.** `docs/architecture.md` §6.4 fixes the format as `name@version#params_hash`, but nothing constructs one. | `docs/roadmap.md` places `feature_id` hashing in Phase 3. Freezing the feature name grammar and version syntax before `features/base.py` and the concrete parameter model exist would lock two things by accident. | Phase 3 |
+| D3 | **`Feature` protocol and `Lookback`.** Neither is declared. `RollPolicy` and `ResetReason` are, because their members are fully specified. | The `Feature` signature names `FeatureParams`, `Lookback`, `StreamGap`, `FeatureUpdate` and `FeatureState`, none of which the specification defines beyond the name. `Lookback` additionally carries a real conflict: `docs/features/TEMPLATE.md` §3 allows event-count, volume or time windows and the worked example uses whole prior sessions, while `docs/research_protocol.md` §4.3 and `docs/validation_protocol.md` require warm-up to be "at least the longest lookback" — a scalar maximum over dimensions that cannot be converted into one another without a data-dependent assumption. | A dedicated Feature Engine / `Lookback` design gate, before Phase 3 |
+| D4 | **`CanonicalEvent` envelope representation.** The protocol is not declared. | Whether `ts_event`, `instrument_id`, `trade_date` and `provenance_id` are raw `int`/`date` or the core value types is a genuine trade-off: the value types exist to stop exactly these fields being confused, but `docs/architecture.md` §16 item 1 forbids per-event validation on a path processing millions of events. Separately, the ordering key `(ts_event, sequence, ingest_index)` names `ingest_index`, which the §5 envelope field table does not list. | An event-representation architecture gate |
+| D5 | **Full dataset manifest.** Phase 0 ships the dependency-free capability primitives only. | `docs/architecture.md` §13 commits manifests to Pydantic v2, and Phase 0 carries zero runtime dependencies. Half the manifest is also unspecifiable today: `source.request` is vendor-shaped, `dataset_id` depends on the storage layout, `session_id` is Phase 2, and `retrieved_at`/`generated_at` are wall-clock reads that the core must never take. | Phase 1, where the vendor is chosen and Pydantic is legitimately at the boundary |
+| D6 | **Per-capability quality statistics.** `CapabilityEntry` carries `present` and `tier` only. `unknown_share`, `truncation_events`, `assumed_feed_delay_ns` and `assumption_source` from the §3 example are absent. | `unknown_share` is a float in the example, and floats are forbidden in exact paths — representing a ratio exactly is an open decision. The other three come from quality layers (L1a/L1b) or run configuration, none of which exist. | Phase 1, alongside the manifest |
+
+---
+
+## 6. KNOWN LIMITATIONS — permanent, must be stated in reports
 
 | # | Limitation | Consequence |
 | --- | --- | --- |
@@ -81,10 +98,26 @@ are verified.** Until then, limit-order results are exploratory only.
 | K7 | Notebook discipline is a `[PROCESS]` control. Code cannot prevent a researcher from plotting the confirmation sample. | The discovery search log is self-reported and labelled as such. |
 | K8 | Contract, period, and instrument selection biases are disclosed, not eliminated. | Every experiment record carries the §9 disclosure of `research_protocol.md`. |
 | K9 | Streaming-only feature computation is slower than vectorized computation. | Accepted cost of structural causality. Mitigated by partition parallelism and caching, never by a second code path. |
+| K10 | **The canonical content-hash format is expensive to change.** It is `docs/architecture.md` §16 item 10: altering a type tag, the key ordering, the separators, the encoding or the version prefix renames every stored feature partition and invalidates every experiment record that references one — silently, because the new digest looks exactly as valid as the old. | Changing it is a project-level decision with a migration plan. The `ofa-canon-1` prefix is the migration mechanism: bumping it changes every digest at once, deliberately and visibly. Adding a **new** tag is safe and needs no bump. |
+| K11 | `feature_id` contains `#`, a URL fragment delimiter that also needs quoting in some shells. | The format is fixed by `docs/architecture.md` §6.4. Consumers must quote it in paths and escape it in URLs. |
+| K12 | The identifier primitives reject integer subclasses (including `IntEnum`); `money.py` and `time.py`, which predate the canonicalizer's exact-type dispatch, accept them. | A documented divergence, not an accident. The older modules are unchanged because their semantics are already committed. |
 
 ---
 
-## 6. Resolution protocol
+## 7. OPEN — documentation conflicts not yet resolved
+
+These are conflicts between authoritative documents. `CLAUDE.md` states that a
+conflict between two documents is a bug; these are recorded rather than
+silently resolved, because choosing a side is an editorial decision.
+
+| # | Conflict | Status |
+| --- | --- | --- |
+| X1 | **Feature storage path.** `docs/architecture.md` §6.4 gives `data/features/<instrument>/<trade_date>/<feature_id>.parquet`; `docs/data_specification.md` §9 gives `features/<venue>/<instrument>/<trade_date>/<feature_id>.parquet`, with `<venue>` present. The data-specification form is self-consistent with every sibling path and with `dataset_id` in the §8 manifest example, so it is the likelier intent — but the architecture document holds authority over §16 item 7, "storage layout and manifest schema". | Open. No storage code exists, so nothing depends on it yet. |
+| X2 | **`venue` in the dataset record.** `CLAUDE.md` requires every dataset to record `venue`; the §8 manifest example in `docs/data_specification.md` has no top-level `venue` field, carrying it only inside `dataset_id`. | Open. Resolve with the manifest in Phase 1. |
+
+---
+
+## 8. Resolution protocol
 
 - A row moves out of UNVERIFIED only with a named verifier, a date, and a
   citation to primary documentation (vendor docs, exchange rulebook).

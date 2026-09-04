@@ -21,12 +21,22 @@ features, strategies, simulation, or agents.
 - `pyproject.toml`, pinned toolchain, `ruff`, `mypy --strict`, `pytest`, CI.
 - `src/ofa/core/`: UTC-nanosecond time primitives; integer fixed-point price
   with exact-only tick-grid conversion; id and run-id primitives; **stable**
-  content hashing for `params_hash`; error types; manifest primitives; the
-  provenance-tier enum (`OBSERVED`, `RECONSTRUCTED`, `INFERRED`,
+  content hashing for `params_hash`; error types; manifest primitives — the
+  dependency-free capability record and provenance types only, the full
+  dataset manifest being deferred to Phase 1 (`docs/limitations.md` §5, D5);
+  the provenance-tier enum (`OBSERVED`, `RECONSTRUCTED`, `INFERRED`,
   `SIMULATED`); the `DataRequirement` enum.
-- **Protocol declarations only**, with zero implementations: `CanonicalEvent`
-  and `Feature` (`on_event` / `on_gap` / `on_reset` / `snapshot`, plus
-  `requires`, `lookback`, `roll_policy`).
+- **Protocol declarations — DEFERRED by accepted scope amendment.**
+  `CanonicalEvent` and `Feature` (`on_event` / `on_gap` / `on_reset` /
+  `snapshot`, plus `requires`, `lookback`, `roll_policy`) are **not** declared
+  in Phase 0. The `Feature` signature names `FeatureParams`, `Lookback`,
+  `StreamGap`, `FeatureUpdate` and `FeatureState`, none of which this
+  specification defines beyond the name, and `Lookback` carries an unresolved
+  conflict between event-count, volume, time and session windows against the
+  requirement that warm-up be "at least the longest lookback". The
+  `CanonicalEvent` envelope's typing trades directly against §16 item 1's ban
+  on per-event validation. Each moves to its own design gate before Phase 3;
+  both are recorded in `docs/limitations.md` §5, D3 and D4.
 - `docs/limitations.md` kept current as the UNVERIFIED register.
 
 ### Out of scope — exact

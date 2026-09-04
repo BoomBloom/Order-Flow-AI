@@ -45,7 +45,7 @@ impressive multi-agent system without it is not success.
   types with the Orchestrator deferred; split policy made per-experiment
   configuration.
 
-**Phase 0 — Repository foundation: IN PROGRESS.**
+**Phase 0 — Repository foundation: COMPLETE, pending the two deferred design gates below.**
 
 Delivered and committed:
 
@@ -57,22 +57,30 @@ Delivered and committed:
 | Step 3 | Canonical serialization and stable content hashing (`ofa-canon-1`); `RunId`, `InstrumentId`, `ProvenanceId` |
 | M1 | `ProvenanceTier`, `DataRequirement`, `CapabilityEntry`, `CapabilityRecord`, `RollPolicy`, `ResetReason` |
 | M2 | Schema-version registry, code-revision resolution, `ofa version` |
+| M3 | Pinned toolchain, CI, dependency/SDK/`data` guards, deterministic Phase 0 artifact, limitations closure |
 
-Still outstanding in Phase 0:
+All seven Phase 0 exit criteria in `docs/roadmap.md` are now met, verified from
+a clean checkout by CI rather than by inspection.
 
-- **M3** — CI and the exit-criteria guards: `data/` gitignored, no market-data
-  SDK, dependency allowlist, deterministic-artifact reproducibility check,
-  clean-clone `make check`, toolchain pinning.
-- **Protocol declarations** — `CanonicalEvent` and `Feature`. Both are
-  **blocked**: the `Feature` signature names `FeatureParams`, `Lookback`,
-  `StreamGap`, `FeatureUpdate` and `FeatureState`, none of which the
-  specification defines, and `Lookback` carries an unresolved conflict between
-  event-count, volume, time and session windows. Each needs its own design
-  gate before implementation.
-- **The dataset manifest** — deferred to Phase 1, where the vendor is chosen
-  and Pydantic is legitimately available at the boundary. Phase 0 ships only
-  the dependency-free capability primitives it needs.
-- **`docs/limitations.md`** — Phase 0 entries not yet recorded.
+Deliberately **not** built in Phase 0, each deferred to a named gate and
+recorded in `docs/limitations.md` §5:
+
+- **`Feature` protocol and `Lookback`** (D3) — the signature names five types
+  the specification never defines, and `Lookback` carries a real conflict
+  between event-count, volume, time and session windows against language
+  requiring a single "longest" lookback. Needs its own design gate before
+  Phase 3.
+- **`CanonicalEvent` envelope** (D4) — whether the envelope carries raw
+  integers or the core value types is a genuine trade-off against §16 item 1's
+  ban on per-event validation. Needs an event-representation gate.
+- **`feature_id`** (D2) — Phase 3, with the feature registry.
+- **The dataset manifest** (D5) — Phase 1, where the vendor is known and
+  Pydantic is legitimately at the boundary.
+- **Capability quality statistics** (D6) — Phase 1.
+
+Two documentation conflicts remain open and are recorded rather than silently
+resolved (`docs/limitations.md` §7): the feature storage path, and whether
+`venue` is a top-level manifest field.
 
 No vendor selected. No data acquired. No runtime dependencies declared.
 
@@ -174,9 +182,11 @@ Summaries only. Per-phase detail and the full "Done when" text live in
 - **Prerequisites:** none. Architecture gate complete.
 - **Scope:** tooling and CI; `src/ofa/core/` primitives (UTC-ns time, integer
   fixed-point price with exact tick conversion, ids, stable content hashing,
-  errors, manifest primitives, provenance-tier and `DataRequirement` enums);
-  protocol declarations only for `CanonicalEvent` and `Feature`;
-  `docs/limitations.md` kept current.
+  errors, capability/provenance manifest primitives, provenance-tier and
+  `DataRequirement` enums); `docs/limitations.md` kept current. The
+  `CanonicalEvent` and `Feature` protocol declarations and the full dataset
+  manifest are **deferred by accepted scope amendment** — see
+  `docs/roadmap.md` Phase 0 and `docs/limitations.md` §5.
 - **Out of scope:** all vendor code, data download, event store, replay,
   reference data, features, labels, strategy, simulator, statistics,
   validation, registry, agents, and any CLI beyond `ofa version`. **No
@@ -391,10 +401,15 @@ that separation, which is why it is deferred rather than scheduled.
 
 ## 11. Immediate next action
 
-Complete **Phase 0** within the boundary in §7: milestone **M3** (CI and the
-exit-criteria guards), then the two blocked design gates for `Lookback` and
-the `CanonicalEvent` envelope, then close `docs/limitations.md`.
+Phase 0's implementation is complete and verified from a clean checkout. Two
+things gate what follows, and they are independent of each other:
 
-Resolving the vendor question (V1–V2) in parallel keeps Phase 1 unblocked when
-Phase 0 exits. Phase 0 itself requires no vendor decision and is not blocked by
-any UNVERIFIED item.
+1. **Resolve the vendor question (V1–V2).** Phase 1 cannot start without it,
+   and V2 in particular — whether `ts_recv` is supplied historically — decides
+   whether the decision clock is measured or assumed.
+2. **Hold the two deferred design gates**, `Lookback` / `Feature` and the
+   `CanonicalEvent` envelope. Neither blocks Phase 1's data spine; both block
+   Phase 3.
+
+Phase 1 may begin once V1–V6 are resolved. Nothing in Phase 0 remains to
+build.

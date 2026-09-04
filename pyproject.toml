@@ -18,11 +18,16 @@ dependencies = []
 ofa = "ofa.cli.main:main"
 
 [project.optional-dependencies]
+# Pinned, not floated. docs/roadmap.md requires a pinned Phase 0 toolchain, and
+# exit criterion 1 requires `make check` to be green on a clean clone: a new
+# ruff or mypy release changing a rule would break that through no change of
+# ours. Exact pins are the smallest mechanism that delivers this without adding
+# a second package manager or a lockfile. Bumping one is a deliberate edit.
 dev = [
-  "pytest>=8.0",
-  "hypothesis>=6.100",
-  "mypy>=1.10",
-  "ruff>=0.5",
+  "pytest==9.1.1",
+  "hypothesis==6.167.1",
+  "mypy==2.3.1",
+  "ruff==0.16.6",
 ]
 
 [tool.hatch.version]
@@ -45,7 +50,7 @@ known-first-party = ["ofa"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-mypy_path = "src"
+mypy_path = ["src", "tests"]
 files = ["src", "tests"]
 # tests/unit/test_money.py and tests/property/test_money.py share a basename.
 # Deriving module names from the repository root keeps them distinct without
@@ -55,7 +60,9 @@ namespace_packages = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+# `tests` carries the deterministic Phase 0 artifact generator under
+# tests/support/, which the reproducibility test also imports from subprocesses.
+pythonpath = ["src", "tests"]
 # tests/unit/test_money.py and tests/property/test_money.py share a basename;
 # importlib import mode keeps them distinct without __init__.py files.
 addopts = "--import-mode=importlib"

@@ -50,12 +50,29 @@ Python 3.11+. The core has no runtime dependencies; the development extras are
 
 ```sh
 python -m venv .venv && source .venv/bin/activate
-make install-dev          # editable install plus the development extras
+make install-dev          # editable install plus the pinned development toolchain
 make check                # ruff + ruff format --check + mypy --strict + pytest
+make guards               # the Phase 0 exit-criteria guards on their own
 ofa version               # package version, code revision, schema versions
 ```
 
-`make check` is the gate: it must be green before anything is committed.
+`make check` is the gate: it must be green before anything is committed. CI
+runs exactly these commands from a fresh checkout.
+
+Every target invokes its tool as `python -m …` rather than as a bare `ruff` or
+`mypy` from `PATH`, so the tools always come from the same environment as the
+package. A globally installed, isolated `mypy` cannot see `pytest` or
+`hypothesis` and will type-check the suite against imports it cannot resolve;
+going through the interpreter makes that impossible. Activating the virtualenv
+is the whole setup — or target another interpreter explicitly:
+
+```sh
+make check PYTHON=/path/to/python
+```
+
+The development toolchain is pinned exactly, so a clean checkout installs the
+same `ruff`, `mypy`, `pytest` and `hypothesis` that CI uses. The package itself
+has no runtime dependencies, and a test fails if one is ever added.
 
 `ofa version` prints deterministic JSON — the package version, the current
 code revision with its `CLEAN` / `DIRTY` / `UNKNOWN` state, and every
