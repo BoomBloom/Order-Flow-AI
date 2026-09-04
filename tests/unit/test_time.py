@@ -13,6 +13,7 @@ import pytest
 
 from ofa.core.errors import (
     InexactDatetimeError,
+    InvalidTradeDateError,
     NaiveDatetimeError,
     NonUtcDatetimeError,
     OfaError,
@@ -25,6 +26,7 @@ from ofa.core.time import (
     INT64_MIN,
     NS_PER_MICROSECOND,
     NS_PER_SECOND,
+    TradeDate,
     UtcNanos,
 )
 
@@ -441,3 +443,191 @@ def test_datetime_ordering_is_only_weakly_monotonic() -> None:
     earlier, later = UtcNanos(1_710_163_800_123_456_001), UtcNanos(1_710_163_800_123_456_999)
     assert earlier < later
     assert not earlier.to_datetime_with_remainder()[0] < later.to_datetime_with_remainder()[0]
+
+
+# --------------------------------------------------------------------------
+# TradeDate: valid construction
+# --------------------------------------------------------------------------
+
+
+def test_trade_date_exposes_its_components() -> None:
+    trade_date = TradeDate(2024, 3, 11)
+    assert (trade_date.year, trade_date.month, trade_date.day) == (2024, 3, 11)
+
+
+def test_trade_date_to_date() -> None:
+    assert TradeDate(2024, 3, 11).to_date() == date(2024, 3, 11)
+    assert type(TradeDate(2024, 3, 11).to_date()) is date
+
+
+def test_trade_date_isoformat_is_the_canonical_string() -> None:
+    assert TradeDate(2024, 3, 11).isoformat() == "2024-03-11"
+
+
+@pytest.mark.parametrize(
+    ("year", "month", "day", "expected"),
+    [(1, 1, 1, "0001-01-01"), (99, 3, 11, "0099-03-11"), (9999, 12, 31, "9999-12-31")],
+)
+def test_trade_date_isoformat_pads_to_four_digit_years(
+    year: int, month: int, day: int, expected: str
+) -> None:
+    assert TradeDate(year, month, day).isoformat() == expected
+
+
+def test_trade_date_isoformat_is_filesystem_safe() -> None:
+    """It is a directory-name component in the stored partition layout."""
+    rendered = TradeDate(2024, 3, 11).isoformat()
+    assert "/" not in rendered
+    assert "\\" not in rendered
+    assert rendered == "2024-03-11"
+
+
+@pytest.mark.parametrize(("year", "month", "day"), [(2024, 2, 29), (2000, 2, 29)])
+def test_leap_days_are_accepted(year: int, month: int, day: int) -> None:
+    assert TradeDate(year, month, day).to_date() == date(year, month, day)
+
+
+def test_year_boundaries_are_accepted() -> None:
+    assert TradeDate(1, 1, 1).to_date() == date(1, 1, 1)
+    assert TradeDate(9999, 12, 31).to_date() == date(9999, 12, 31)
+
+
+# --------------------------------------------------------------------------
+# TradeDate: invalid Gregorian dates
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("year", "month", "day"),
+    [
+        (2023, 2, 29),  # not a leap year
+        (1900, 2, 29),  # century non-leap year
+        (2024, 2, 30),  # February never has 30 days
+        (2024, 4, 31),  # April has 30
+        (2024, 13, 1),  # month above range
+        (2024, 0, 1),  # month below range
+        (2024, 1, 0),  # day below range
+        (2024, 1, 32),  # day above range
+        (0, 1, 1),  # year below the representable range
+        (10000, 1, 1),  # year above the representable range
+        (-1, 1, 1),
+    ],
+)
+def test_invalid_calendar_dates_raise(year: int, month: int, day: int) -> None:
+    with pytest.raises(InvalidTradeDateError):
+        TradeDate(year, month, day)
+
+
+def test_invalid_trade_date_error_hierarchy() -> None:
+    assert issubclass(InvalidTradeDateError, ValueError)
+    assert issubclass(InvalidTradeDateError, OfaError)
+
+
+# --------------------------------------------------------------------------
+# TradeDate: type rejection
+# --------------------------------------------------------------------------
+
+
+def test_trade_date_rejects_bool_year() -> None:
+    """date(True, 3, 11) would silently mean year 1."""
+    with pytest.raises(TimeTypeError):
+        TradeDate(True, 3, 11)
+
+
+def test_trade_date_rejects_bool_month() -> None:
+    """date(2024, True, 11) would silently mean January."""
+    with pytest.raises(TimeTypeError):
+        TradeDate(2024, True, 11)
+
+
+def test_trade_date_rejects_bool_day() -> None:
+    with pytest.raises(TimeTypeError):
+        TradeDate(2024, 3, True)
+
+
+@pytest.mark.parametrize("position", [0, 1, 2])
+@pytest.mark.parametrize("bad", [2024.0, 3.5, "2024", None])
+def test_trade_date_rejects_non_integer_components(position: int, bad: object) -> None:
+    components: list[object] = [2024, 3, 11]
+    components[position] = bad
+    with pytest.raises(TimeTypeError):
+        TradeDate(*components)  # type: ignore[arg-type]
+
+
+def test_trade_date_rejects_a_datetime_component() -> None:
+    with pytest.raises(TimeTypeError):
+        TradeDate(datetime(2024, 3, 11, tzinfo=UTC), 3, 11)  # type: ignore[arg-type]
+
+
+def test_trade_date_rejects_a_date_component() -> None:
+    with pytest.raises(TimeTypeError):
+        TradeDate(date(2024, 3, 11), 3, 11)  # type: ignore[arg-type]
+
+
+# --------------------------------------------------------------------------
+# TradeDate: value semantics
+# --------------------------------------------------------------------------
+
+
+def test_trade_date_is_immutable() -> None:
+    trade_date = TradeDate(2024, 3, 11)
+    with pytest.raises(AttributeError):
+        trade_date.year = 2025  # type: ignore[misc]
+
+
+def test_trade_date_equality_and_hashing() -> None:
+    assert TradeDate(2024, 3, 11) == TradeDate(2024, 3, 11)
+    assert TradeDate(2024, 3, 11) != TradeDate(2024, 3, 12)
+    assert hash(TradeDate(2024, 3, 11)) == hash(TradeDate(2024, 3, 11))
+    assert len({TradeDate(2024, 3, 11), TradeDate(2024, 3, 11), TradeDate(2024, 3, 12)}) == 2
+
+
+def test_trade_date_is_not_equal_to_a_plain_date_or_tuple() -> None:
+    assert TradeDate(2024, 3, 11) != date(2024, 3, 11)
+    assert TradeDate(2024, 3, 11) != (2024, 3, 11)  # type: ignore[comparison-overlap]
+
+
+def test_trade_date_ordering_is_chronological() -> None:
+    assert TradeDate(2024, 3, 9) < TradeDate(2024, 3, 10)
+    assert TradeDate(2024, 3, 31) < TradeDate(2024, 4, 1)
+    assert TradeDate(2024, 12, 31) < TradeDate(2025, 1, 1)
+    assert TradeDate(2024, 3, 11) <= TradeDate(2024, 3, 11)
+
+
+def test_trade_date_is_not_comparable_to_utcnanos() -> None:
+    with pytest.raises(TypeError):
+        _ = TradeDate(2024, 3, 11) < UtcNanos(0)  # type: ignore[operator]
+
+
+def test_trade_date_is_not_comparable_to_a_plain_date() -> None:
+    with pytest.raises(TypeError):
+        _ = TradeDate(2024, 3, 11) < date(2024, 3, 12)  # type: ignore[operator]
+
+
+# --------------------------------------------------------------------------
+# TradeDate: the prohibited conversions must stay absent
+# --------------------------------------------------------------------------
+
+
+def test_trade_date_has_no_conversion_or_wall_clock_methods() -> None:
+    """Absence is the enforcement: a trading date is assigned, never derived."""
+    for name in (
+        "from_date",
+        "from_datetime",
+        "from_iso",
+        "from_timestamp",
+        "from_utc_nanos",
+        "to_utc_nanos",
+        "today",
+        "now",
+        "next",
+        "previous",
+        "__add__",
+        "__sub__",
+    ):
+        assert not hasattr(TradeDate, name), f"TradeDate must not define {name}"
+
+
+def test_utcnanos_still_has_no_trade_date_conversion() -> None:
+    for name in ("to_trade_date", "trade_date", "from_trade_date"):
+        assert not hasattr(UtcNanos, name), f"UtcNanos must not define {name}"

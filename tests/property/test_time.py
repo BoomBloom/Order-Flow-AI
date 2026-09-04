@@ -1,23 +1,28 @@
-"""Property tests for exact UTC-nanosecond instants.
+"""Property tests for the core temporal value types.
 
 The datetime properties use an independent oracle: expected nanoseconds are
 computed from ``calendar.timegm`` over the UTC time tuple, which shares no
-code path with the implementation's ``timedelta``-field arithmetic.
+code path with the implementation's ``timedelta``-field arithmetic. The
+TradeDate properties use the standard library's own ``date`` as the oracle
+for ordering and ISO rendering.
 """
 
 from __future__ import annotations
 
 import calendar
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from ofa.core.errors import InvalidTradeDateError, TimeTypeError
 from ofa.core.time import (
     INT64_MAX,
     INT64_MIN,
     NS_PER_MICROSECOND,
     NS_PER_SECOND,
+    TradeDate,
     UtcNanos,
 )
 
@@ -156,3 +161,62 @@ def test_datetime_conversion_is_weakly_monotonic(left: int, right: int) -> None:
     earlier, _ = UtcNanos(left).to_datetime_with_remainder()
     later, _ = UtcNanos(right).to_datetime_with_remainder()
     assert earlier <= later
+
+
+# --------------------------------------------------------------------------
+# TradeDate
+# --------------------------------------------------------------------------
+
+dates = st.dates()
+components = st.integers(min_value=-5, max_value=10_050)
+
+
+@given(dates)
+def test_trade_date_to_date_round_trips_any_valid_date(value: date) -> None:
+    assert TradeDate(value.year, value.month, value.day).to_date() == value
+
+
+@given(dates)
+def test_trade_date_isoformat_matches_the_standard_library(value: date) -> None:
+    """Independent oracle: the stdlib date's own ISO rendering."""
+    assert TradeDate(value.year, value.month, value.day).isoformat() == value.isoformat()
+
+
+@given(dates, dates)
+def test_trade_date_ordering_matches_date_ordering(left: date, right: date) -> None:
+    """The central invariant: chronological ordering, identical to date's."""
+    a = TradeDate(left.year, left.month, left.day)
+    b = TradeDate(right.year, right.month, right.day)
+    assert (a < b) == (left < right)
+    assert (a == b) == (left == right)
+    assert (a > b) == (left > right)
+
+
+@given(dates)
+def test_equal_trade_dates_hash_equally(value: date) -> None:
+    a = TradeDate(value.year, value.month, value.day)
+    b = TradeDate(value.year, value.month, value.day)
+    assert a == b
+    assert hash(a) == hash(b)
+
+
+@given(components, components, components)
+def test_arbitrary_components_either_construct_correctly_or_raise(
+    year: int, month: int, day: int
+) -> None:
+    """Never a wrong date, and never an unexpected exception type."""
+    try:
+        trade_date = TradeDate(year, month, day)
+    except InvalidTradeDateError:
+        with pytest.raises(ValueError):
+            date(year, month, day)
+    else:
+        assert trade_date.to_date() == date(year, month, day)
+
+
+@given(st.booleans(), st.integers(min_value=0, max_value=2))
+def test_a_bool_in_any_position_is_rejected(flag: bool, position: int) -> None:
+    parts: list[object] = [2024, 3, 11]
+    parts[position] = flag
+    with pytest.raises(TimeTypeError):
+        TradeDate(*parts)  # type: ignore[arg-type]

@@ -45,11 +45,15 @@ class InvalidTickSizeError(OfaError, ValueError):
 class TimeTypeError(OfaError, TypeError):
     """A value in a time path was not of the exact type required.
 
-    Raised for floats, bools, strings, and any other non-``int`` where
-    nanoseconds are expected, and for non-``datetime`` input where an aware
-    datetime is required. Floats are never permitted in a time path: a float
-    cannot hold a nanosecond instant exactly, so accepting one would make
-    exactness depend on the magnitude of the value.
+    Raised for floats, bools, strings, and any other non-``int`` where an
+    exact integer is expected — nanoseconds, or the year, month and day of a
+    trading date — and for non-``datetime`` input where an aware datetime is
+    required.
+
+    Floats are never permitted: a float cannot hold a nanosecond instant
+    exactly, so accepting one would make exactness depend on the magnitude of
+    the value. ``bool`` is rejected explicitly because it is a subclass of
+    ``int`` and would otherwise be read as 0 or 1.
     """
 
 
@@ -86,4 +90,15 @@ class InexactDatetimeError(OfaError, ValueError):
     exact conversion raises instead of truncating or rounding. Callers that
     accept the loss use the explicit lossy path, which returns the discarded
     remainder alongside the datetime.
+    """
+
+
+class InvalidTradeDateError(OfaError, ValueError):
+    """The year, month and day do not form a valid Gregorian calendar date.
+
+    Raised for impossible combinations such as 30 February, month 13, or
+    29 February in a non-leap year, and for years outside the range a Python
+    ``date`` can represent. It is not raised for a date that merely fails to
+    be a trading day: whether a valid date is a session the exchange held is a
+    calendar question, answered in the reference layer, not here.
     """

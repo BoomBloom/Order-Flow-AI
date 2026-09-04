@@ -8,6 +8,7 @@ steps; protocol declarations arrive after that.
 from ofa.core.errors import (
     InexactDatetimeError,
     InvalidTickSizeError,
+    InvalidTradeDateError,
     NaiveDatetimeError,
     NonUtcDatetimeError,
     OfaError,
@@ -18,7 +19,7 @@ from ofa.core.errors import (
     TimeTypeError,
 )
 from ofa.core.money import INT64_MAX, INT64_MIN, PRICE_SCALE, Price, TickGrid, Ticks
-from ofa.core.time import EPOCH, NS_PER_MICROSECOND, NS_PER_SECOND, UtcNanos
+from ofa.core.time import EPOCH, NS_PER_MICROSECOND, NS_PER_SECOND, TradeDate, UtcNanos
 
 __all__ = [
     "EPOCH",
@@ -29,6 +30,7 @@ __all__ = [
     "PRICE_SCALE",
     "InexactDatetimeError",
     "InvalidTickSizeError",
+    "InvalidTradeDateError",
     "NaiveDatetimeError",
     "NonUtcDatetimeError",
     "OfaError",
@@ -40,5 +42,6 @@ __all__ = [
     "Ticks",
     "TimeOverflowError",
     "TimeTypeError",
+    "TradeDate",
     "UtcNanos",
 ]

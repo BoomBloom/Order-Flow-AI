@@ -1,4 +1,8 @@
-"""Instants as exact UTC nanoseconds.
+"""Core temporal value types: an exact instant, and an assigned trading date.
+
+``UtcNanos`` is an instant. ``TradeDate`` is a trading date that something
+else assigned. They are deliberately unrelated: this module offers no
+conversion between them in either direction, and none may be added here.
 
 This module implements the timestamp half of the locked data contract
 (``docs/data_specification.md`` section 1 item 7 and section 6): all internal
@@ -42,11 +46,12 @@ Deliberately absent, and asserted absent by tests:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Final
 
 from ofa.core.errors import (
     InexactDatetimeError,
+    InvalidTradeDateError,
     NaiveDatetimeError,
     NonUtcDatetimeError,
     TimeOverflowError,
@@ -214,3 +219,82 @@ class UtcNanos:
                 f"to_datetime_with_remainder() to accept the loss explicitly"
             )
         return moment
+
+
+@dataclass(frozen=True, slots=True, order=True)
+class TradeDate:
+    """A trading date, given as an explicit year, month and day.
+
+    A trading date is **assigned**, not derived. The exchange session date is
+    fixed by an exchange calendar in the reference layer (L4), which knows
+    about holidays, early closes and daylight-saving shifts; a Globex session
+    opening on a Sunday evening belongs to Monday's trading date. This type
+    holds the answer, never computes it.
+
+    Consequently there is no conversion here in either direction — no
+    ``from_datetime``, no ``from_utc_nanos``, no ``to_utc_nanos`` — and none
+    may be added. That mapping is a function of an instant, an instrument and
+    a calendar version, so it belongs to the layer that holds all three.
+    ``docs/architecture.md`` section 4.2 puts it directly: a trade date is
+    "assigned by the L4 calendar, never by truncating a timestamp".
+
+    The type is deliberately free of venue, timezone and session information.
+    Two venues' ``TradeDate(2024, 3, 11)`` compare equal while covering
+    different intervals of real time; equality here means "the same labelled
+    date", not "the same session".
+
+    Ordering is chronological, but **adjacency is not**: ``TradeDate(2024, 3,
+    8)`` and ``TradeDate(2024, 3, 11)`` are consecutive trading days across a
+    weekend. There is no successor or predecessor operation, and calendar
+    arithmetic on the result of :meth:`to_date` is not trading-date
+    sequencing — that is a calendar question for L4.
+
+    Construction takes three integers rather than a ``date`` on purpose.
+    ``datetime`` is a subclass of ``date``, so a constructor accepting a
+    ``date`` would silently accept a ``datetime`` and discard its time of day.
+    Three integers make that mistake unrepresentable.
+    """
+
+    year: int
+    month: int
+    day: int
+
+    def __post_init__(self) -> None:
+        _exact_int(self.year, "TradeDate.year")
+        _exact_int(self.month, "TradeDate.month")
+        _exact_int(self.day, "TradeDate.day")
+        # Only once the components are known to be exact integers is a date
+        # built, so the calendar check can never be handed a bool or a float.
+        self._as_date()
+
+    def _as_date(self) -> date:
+        """Build the standard-library date, translating its error to ours.
+
+        Gregorian correctness — leap years, month lengths, the representable
+        year range — is delegated to the standard library rather than
+        reimplemented here.
+        """
+        try:
+            return date(self.year, self.month, self.day)
+        except ValueError as exc:
+            raise InvalidTradeDateError(
+                f"({self.year}, {self.month}, {self.day}) is not a valid "
+                f"Gregorian calendar date: {exc}"
+            ) from exc
+
+    def to_date(self) -> date:
+        """This trading date as a standard-library ``date``.
+
+        An interoperability and display boundary, like
+        :meth:`UtcNanos.to_datetime`. Do not do calendar arithmetic on the
+        result to move between trading days: the next trading date is not
+        generally the next calendar date.
+        """
+        return self._as_date()
+
+    def isoformat(self) -> str:
+        """The canonical string form, ``YYYY-MM-DD``, zero-padded.
+
+        Deterministic and locale-independent.
+        """
+        return self._as_date().isoformat()
