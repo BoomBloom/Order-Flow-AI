@@ -25,11 +25,26 @@ Two categories:
 | V6 | Vendor sequence-number semantics: per-channel, resets, documented gap tolerance | L1a checks; the ordering key | — |
 | V7 | Storage volume per instrument-day at each data tier | Scaling beyond one instrument | — |
 | V8 | Live feed vendor and its capability record relative to the historical one | Phase 10 paper trading | — |
+| V9 | **Rithmic entitlement scope.** An R\|Trader Pro subscription authenticates certified third-party front-ends. Whether the same entitlement permits a self-written R\|API+ / R\|Protocol client without separate Rithmic application certification is unknown. | Whether a first-party live adapter (`architecture.md` §12) is possible at all, or whether live capture must run through a certified platform | — |
+| V10 | **Rithmic historical depth availability.** Believed forward-record-only for L2, with no deep archive. If confirmed, no Rithmic-sourced confirmation sample exists until self-capture accumulates. | Phase 1 source selection; every split policy in `research_protocol.md` §4 | — |
+| V11 | **Rithmic L2 depth semantics for NQ/ES/6E:** number of price levels, aggregated MBP vs. by-order MBO, and truncation behaviour under burst. Supersedes V4/V5 for this vendor. | All liquidity features; §12.1 transferability of any liquidity conclusion | — |
+| V12 | **Timestamp fields surviving to a self-recorded capture.** Whether exchange time and a receive time both survive Rithmic normalization and the recording front-end, or only one. A platform-local receive stamp is a genuine `ts_recv` for the decision clock, but it measures our own network path, not the vendor's. | The decision clock (`architecture.md` §9.1) for any self-recorded partition; V2 for the live feed | — |
+| V13 | **Whether CME sequence numbers survive Rithmic normalization and the front-end.** Believed lost; unverified. | L1a gap detection and the `(ts_event, sequence, ingest_index)` ordering key for self-recorded data | — |
+| V14 | **Aggressor side through Rithmic:** exchange-supplied flag (`OBSERVED`) or requiring tick/quote-rule inference (`INFERRED`). Supersedes V3 for this vendor. | Every order-flow feature; §12.1 transferability of every order-flow conclusion | — |
 
 If V2 resolves to "not supplied", the decision clock rests on
 `assumed_feed_delay_ns` for all historical work. That is a configured
 assumption, mandatory to stress-test, and reported with every dependent
 result.
+
+V9–V14 concern a **candidate live/self-capture source** (Rithmic, reached
+through a certified front-end) and are recorded separately from V1–V8, which
+concern the **historical research source**. These may be different vendors.
+Where they are, `architecture.md` §12.1 governs whether a conclusion drawn on
+the historical source may be paper traded on the live one, and the two
+capability records must be compared explicitly rather than assumed
+compatible. User-reported vendor capability does not resolve any row here:
+§6 requires a named verifier, a date, and primary documentation.
 
 ---
 
@@ -56,6 +71,7 @@ are verified.** Until then, limit-order results are exploratory only.
 | C1 | Commission, exchange, clearing, and NFA fee schedule for the intended broker | Gate 6 economic significance |
 | C2 | Realistic decision-to-exchange order latency for the intended setup | Order-latency stress; every fill |
 | C3 | Achievable colocation/connectivity assumptions, if any | Whether latency-sensitive hypotheses are researchable at all |
+| C4 | **Market-data licensing terms for recording and storing a CME feed for research**, under the applicable subscriber category and the front-end vendor's terms | Whether a self-recorded capture is a usable research dataset at all |
 
 ---
 
