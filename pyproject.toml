@@ -12,6 +12,11 @@ requires-python = ">=3.11"
 # the standard library only. See docs/architecture.md section 13.
 dependencies = []
 
+[project.scripts]
+# The only console entry point in Phase 0. docs/roadmap.md puts every command
+# beyond `ofa version` out of scope.
+ofa = "ofa.cli.main:main"
+
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0",

@@ -44,10 +44,37 @@ impressive multi-agent system without it is not success.
 - Two architectural decisions taken: agent roster collapsed to three active
   types with the Orchestrator deferred; split policy made per-experiment
   configuration.
-- No production code exists. No vendor selected. No data acquired. No
-  dependencies declared.
 
-**Next phase: Phase 0 — Repository foundation.** Not started.
+**Phase 0 — Repository foundation: IN PROGRESS.**
+
+Delivered and committed:
+
+| Milestone | Content |
+| --- | --- |
+| Toolchain | `pyproject.toml`, `ruff`, `mypy --strict`, `pytest`, `hypothesis`, `make check` |
+| Step 1 | `Price`, `Ticks`, `TickGrid` — `int64` fixed-point at 1e-9, exact-only tick conversion |
+| Step 2 | `UtcNanos`, `TradeDate` — exact UTC-nanosecond instant and assigned trading date |
+| Step 3 | Canonical serialization and stable content hashing (`ofa-canon-1`); `RunId`, `InstrumentId`, `ProvenanceId` |
+| M1 | `ProvenanceTier`, `DataRequirement`, `CapabilityEntry`, `CapabilityRecord`, `RollPolicy`, `ResetReason` |
+| M2 | Schema-version registry, code-revision resolution, `ofa version` |
+
+Still outstanding in Phase 0:
+
+- **M3** — CI and the exit-criteria guards: `data/` gitignored, no market-data
+  SDK, dependency allowlist, deterministic-artifact reproducibility check,
+  clean-clone `make check`, toolchain pinning.
+- **Protocol declarations** — `CanonicalEvent` and `Feature`. Both are
+  **blocked**: the `Feature` signature names `FeatureParams`, `Lookback`,
+  `StreamGap`, `FeatureUpdate` and `FeatureState`, none of which the
+  specification defines, and `Lookback` carries an unresolved conflict between
+  event-count, volume, time and session windows. Each needs its own design
+  gate before implementation.
+- **The dataset manifest** — deferred to Phase 1, where the vendor is chosen
+  and Pydantic is legitimately available at the boundary. Phase 0 ships only
+  the dependency-free capability primitives it needs.
+- **`docs/limitations.md`** — Phase 0 entries not yet recorded.
+
+No vendor selected. No data acquired. No runtime dependencies declared.
 
 ---
 
@@ -364,6 +391,10 @@ that separation, which is why it is deferred rather than scheduled.
 
 ## 11. Immediate next action
 
-Begin **Phase 0** within the boundary in §7, or resolve the vendor question
-(V1–V2) in parallel so that Phase 1 is unblocked when Phase 0 exits. Phase 0
-requires no vendor decision and is not blocked by any UNVERIFIED item.
+Complete **Phase 0** within the boundary in §7: milestone **M3** (CI and the
+exit-criteria guards), then the two blocked design gates for `Lookback` and
+the `CanonicalEvent` envelope, then close `docs/limitations.md`.
+
+Resolving the vendor question (V1–V2) in parallel keeps Phase 1 unblocked when
+Phase 0 exits. Phase 0 itself requires no vendor decision and is not blocked by
+any UNVERIFIED item.

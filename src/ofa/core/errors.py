@@ -191,3 +191,26 @@ class InvalidCapabilityError(OfaError, ValueError):
     composite or empty requirement rather than a single capability, or repeats
     a capability.
     """
+
+
+class VersioningTypeError(OfaError, TypeError):
+    """A versioning value was of the wrong type.
+
+    Raised for a non-``RevisionState`` where a state is required and for a
+    non-``str`` revision, so that a revision can never be a number, a path, or
+    an object whose ``str()`` happens to look like a hash.
+    """
+
+
+class InvalidCodeRevisionError(OfaError, ValueError):
+    """A code revision is not a well-formed, self-consistent record.
+
+    Raised when the revision is not a full 40-character lowercase hexadecimal
+    Git object name, and when the state and the revision disagree — an unknown
+    revision carrying a hash, or a known one carrying none.
+
+    The second case is the one that matters. Reproducibility rests on a stored
+    ``code_revision`` naming the code that produced a result, so a placeholder
+    presented as a real revision would be a false claim about an artifact
+    rather than a missing field.
+    """

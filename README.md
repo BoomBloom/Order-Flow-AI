@@ -10,9 +10,19 @@ is not a near-term goal.
 
 ## Status
 
-**Initialization phase — architecture only.** No production code yet. The
-repository currently contains the design contract that implementation must
-follow.
+**Phase 0 — repository foundation, in progress.** The design contract is
+complete and the deterministic core primitives are being built against it.
+
+What exists today, all under `src/ofa/core/`: exact integer fixed-point prices
+with exact-only tick conversion; UTC-nanosecond instants and assigned trading
+dates; canonical serialization and stable cross-process content hashing;
+identifier, provenance and data-capability primitives; and the `ofa version`
+command.
+
+What does not exist: any vendor client, any data, any event store, any
+feature, strategy, simulator, validation engine, or agent. There are **no
+runtime dependencies** — the core is standard library only. See
+[`PLAN.md`](PLAN.md) §2 for what remains in Phase 0.
 
 ## Read in this order
 
@@ -32,6 +42,25 @@ follow.
    done.
 8. [`docs/limitations.md`](docs/limitations.md) — the UNVERIFIED register and
    permanent known limitations.
+
+## Development
+
+Python 3.11+. The core has no runtime dependencies; the development extras are
+`pytest`, `hypothesis`, `mypy` and `ruff`.
+
+```sh
+python -m venv .venv && source .venv/bin/activate
+make install-dev          # editable install plus the development extras
+make check                # ruff + ruff format --check + mypy --strict + pytest
+ofa version               # package version, code revision, schema versions
+```
+
+`make check` is the gate: it must be green before anything is committed.
+
+`ofa version` prints deterministic JSON — the package version, the current
+code revision with its `CLEAN` / `DIRTY` / `UNKNOWN` state, and every
+registered schema version. Outside a Git checkout the revision is reported as
+`UNKNOWN` with a null hash; it is never fabricated.
 
 ## Scope
 
