@@ -76,3 +76,14 @@ class NonUtcDatetimeError(OfaError, ValueError):
     It is rejected rather than silently converted, so that a caller who meant
     exchange-local time is told, instead of having the value reinterpreted.
     """
+
+
+class InexactDatetimeError(OfaError, ValueError):
+    """An instant carried a sub-microsecond remainder that a datetime cannot hold.
+
+    A Python ``datetime`` stores microseconds. Converting an instant that is
+    not an exact whole number of microseconds would lose information, so the
+    exact conversion raises instead of truncating or rounding. Callers that
+    accept the loss use the explicit lossy path, which returns the discarded
+    remainder alongside the datetime.
+    """

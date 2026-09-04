@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from ofa.core.errors import (
+    InexactDatetimeError,
     NaiveDatetimeError,
     NonUtcDatetimeError,
     OfaError,
@@ -22,9 +23,15 @@ from ofa.core.time import (
     EPOCH,
     INT64_MAX,
     INT64_MIN,
+    NS_PER_MICROSECOND,
     NS_PER_SECOND,
     UtcNanos,
 )
+
+#: The lowest and highest microsecond-aligned instants inside the int64 range.
+#: Below LOWEST_ALIGNED the floored microsecond itself falls under INT64_MIN.
+LOWEST_ALIGNED = INT64_MIN + 808
+HIGHEST_ALIGNED = INT64_MAX - 807
 
 # --------------------------------------------------------------------------
 # Construction and type rejection
@@ -243,3 +250,194 @@ def test_has_no_wall_clock_or_trade_date_conversion() -> None:
     """Absence is the enforcement: these must not appear in a later step."""
     for name in ("now", "today", "to_trade_date", "from_timestamp", "to_timestamp"):
         assert not hasattr(UtcNanos, name), f"UtcNanos must not define {name}"
+
+
+# --------------------------------------------------------------------------
+# is_microsecond_aligned
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "nanos", [0, 1_000, -1_000, NS_PER_SECOND, -NS_PER_SECOND, LOWEST_ALIGNED, HIGHEST_ALIGNED]
+)
+def test_aligned_values_report_aligned(nanos: int) -> None:
+    assert UtcNanos(nanos).is_microsecond_aligned is True
+
+
+@pytest.mark.parametrize("nanos", [1, 999, -1, -999, 567, INT64_MIN, INT64_MAX])
+def test_unaligned_values_report_unaligned(nanos: int) -> None:
+    assert UtcNanos(nanos).is_microsecond_aligned is False
+
+
+@pytest.mark.parametrize(
+    "nanos",
+    [
+        0,
+        1,
+        999,
+        1_000,
+        -1,
+        -999,
+        -1_000,
+        -1_500,
+        567,
+        INT64_MIN,
+        INT64_MAX,
+        LOWEST_ALIGNED,
+        HIGHEST_ALIGNED,
+    ],
+)
+def test_alignment_predicate_agrees_with_exact_conversion(nanos: int) -> None:
+    """The predicate is exactly the condition under which to_datetime succeeds."""
+    instant = UtcNanos(nanos)
+    if instant.is_microsecond_aligned:
+        instant.to_datetime()
+    else:
+        with pytest.raises(InexactDatetimeError):
+            instant.to_datetime()
+
+
+# --------------------------------------------------------------------------
+# to_datetime: exact path
+# --------------------------------------------------------------------------
+
+
+def test_epoch_converts_exactly() -> None:
+    assert UtcNanos(0).to_datetime() == datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def test_known_instant_converts_exactly() -> None:
+    expected = datetime(2024, 3, 11, 13, 30, 0, 123_456, tzinfo=UTC)
+    assert UtcNanos(1_710_163_800_123_456_000).to_datetime() == expected
+
+
+def test_aligned_pre_epoch_converts_exactly() -> None:
+    assert UtcNanos(-NS_PER_SECOND).to_datetime() == datetime(1969, 12, 31, 23, 59, 59, tzinfo=UTC)
+
+
+def test_returned_datetime_is_utc_aware() -> None:
+    """B6: tzinfo must be datetime.UTC, not merely some zero-offset object."""
+    moment = UtcNanos(0).to_datetime()
+    assert moment.tzinfo is UTC
+    assert moment.utcoffset() == timedelta(0)
+
+
+def test_aligned_int64_extremes_convert_and_round_trip() -> None:
+    for nanos in (LOWEST_ALIGNED, HIGHEST_ALIGNED):
+        instant = UtcNanos(nanos)
+        assert UtcNanos.from_datetime(instant.to_datetime()) == instant
+
+
+@pytest.mark.parametrize("remainder", [1, 567, 999])
+def test_sub_microsecond_remainder_raises(remainder: int) -> None:
+    with pytest.raises(InexactDatetimeError):
+        UtcNanos(1_710_163_800_123_456_000 + remainder).to_datetime()
+
+
+def test_minus_one_nanosecond_raises_rather_than_flooring_silently() -> None:
+    with pytest.raises(InexactDatetimeError):
+        UtcNanos(-1).to_datetime()
+
+
+def test_inexact_error_hierarchy() -> None:
+    assert issubclass(InexactDatetimeError, ValueError)
+    assert issubclass(InexactDatetimeError, OfaError)
+
+
+# --------------------------------------------------------------------------
+# to_datetime_with_remainder: the explicit lossy path
+# --------------------------------------------------------------------------
+
+
+def test_aligned_values_have_zero_remainder() -> None:
+    moment, remainder = UtcNanos(0).to_datetime_with_remainder()
+    assert moment == datetime(1970, 1, 1, tzinfo=UTC)
+    assert remainder == 0
+
+
+def test_remainder_is_returned_and_reconstructs_the_instant() -> None:
+    nanos = 1_710_163_800_123_456_567
+    moment, remainder = UtcNanos(nanos).to_datetime_with_remainder()
+    assert remainder == 567
+    assert UtcNanos.from_datetime(moment).nanos + remainder == nanos
+
+
+def test_minus_one_nanosecond_floors_and_reports_remainder_999() -> None:
+    """Floor, not truncation: the remainder is 999, never -1."""
+    moment, remainder = UtcNanos(-1).to_datetime_with_remainder()
+    assert moment == datetime(1969, 12, 31, 23, 59, 59, 999_999, tzinfo=UTC)
+    assert remainder == 999
+
+
+def test_minus_fifteen_hundred_nanoseconds_floors_correctly() -> None:
+    moment, remainder = UtcNanos(-1_500).to_datetime_with_remainder()
+    assert moment == datetime(1969, 12, 31, 23, 59, 59, 999_998, tzinfo=UTC)
+    assert remainder == 500
+
+
+def test_int64_max_floors_and_round_trips() -> None:
+    moment, remainder = UtcNanos(INT64_MAX).to_datetime_with_remainder()
+    assert remainder == 807
+    assert UtcNanos.from_datetime(moment).nanos + remainder == INT64_MAX
+
+
+def test_lossy_path_returns_utc_aware_datetime() -> None:
+    moment, _ = UtcNanos(567).to_datetime_with_remainder()
+    assert moment.tzinfo is UTC
+
+
+# --------------------------------------------------------------------------
+# The lower 808 ns band (decision B1)
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("nanos", [INT64_MIN, INT64_MIN + 807])
+def test_lower_band_returns_correct_pair_without_raising(nanos: int) -> None:
+    """B1: the method is total. The pair is correct even at the very bottom."""
+    moment, remainder = UtcNanos(nanos).to_datetime_with_remainder()
+    assert moment == datetime(1677, 9, 21, 0, 12, 43, 145_224, tzinfo=UTC)
+    assert 0 <= remainder <= 999
+    # The mathematical identity holds, verified by integer arithmetic rather
+    # than by a UtcNanos round trip, which is not available in this band.
+    floored_microseconds = nanos // NS_PER_MICROSECOND
+    assert floored_microseconds * NS_PER_MICROSECOND + remainder == nanos
+
+
+@pytest.mark.parametrize("nanos", [INT64_MIN, INT64_MIN + 807])
+def test_lower_band_floored_datetime_is_not_representable_as_utcnanos(nanos: int) -> None:
+    """The documented limit: the datetime alone falls below INT64_MIN."""
+    moment, _ = UtcNanos(nanos).to_datetime_with_remainder()
+    with pytest.raises(TimeOverflowError):
+        UtcNanos.from_datetime(moment)
+
+
+def test_first_value_above_the_band_round_trips_normally() -> None:
+    instant = UtcNanos(LOWEST_ALIGNED)
+    moment, remainder = instant.to_datetime_with_remainder()
+    assert remainder == 0
+    assert UtcNanos.from_datetime(moment) == instant
+
+
+def test_no_aligned_value_lies_inside_the_band() -> None:
+    """Why to_datetime() is unaffected by the band."""
+    assert not any(UtcNanos(n).is_microsecond_aligned for n in range(INT64_MIN, INT64_MIN + 808))
+    assert UtcNanos(LOWEST_ALIGNED).is_microsecond_aligned is True
+
+
+# --------------------------------------------------------------------------
+# The datetime representation is output-only
+# --------------------------------------------------------------------------
+
+
+def test_distinct_instants_can_share_one_datetime() -> None:
+    """Documented and intentional: datetime is not an identity or ordering key."""
+    earlier, later = UtcNanos(1_710_163_800_123_456_001), UtcNanos(1_710_163_800_123_456_999)
+    assert earlier != later
+    assert earlier.to_datetime_with_remainder()[0] == later.to_datetime_with_remainder()[0]
+
+
+def test_datetime_ordering_is_only_weakly_monotonic() -> None:
+    """Sorting by datetime would silently reorder same-microsecond events."""
+    earlier, later = UtcNanos(1_710_163_800_123_456_001), UtcNanos(1_710_163_800_123_456_999)
+    assert earlier < later
+    assert not earlier.to_datetime_with_remainder()[0] < later.to_datetime_with_remainder()[0]

@@ -11,6 +11,16 @@ unique in a market-data stream — many events routinely share a ``ts_event`` �
 so the canonical ordering key remains ``(ts_event, sequence, ingest_index)``
 (``docs/architecture.md`` section 16 item 5).
 
+**The datetime representation is for human-facing output and interoperability
+only.** It must never become the canonical timestamp representation, an event
+ordering key, or an identity key. The canonical representation is integer
+nanoseconds; ordering remains ``(ts_event, sequence, ingest_index)``. This is
+not a stylistic preference: a Python ``datetime`` holds microseconds, so
+**different ``UtcNanos`` values intentionally map to the same datetime**.
+Sorting or comparing by the converted datetime silently reorders events that
+share a microsecond, and datetime equality returns true for instants that are
+not equal.
+
 Floats never enter a time path. ``datetime.timestamp()`` and
 ``timedelta.total_seconds()`` both return floats and both lose nanoseconds at
 market-data magnitudes, so conversion from a datetime uses the integer
@@ -36,6 +46,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Final
 
 from ofa.core.errors import (
+    InexactDatetimeError,
     NaiveDatetimeError,
     NonUtcDatetimeError,
     TimeOverflowError,
@@ -141,3 +152,65 @@ class UtcNanos:
             delta.days * _SECONDS_PER_DAY + delta.seconds
         ) * NS_PER_SECOND + delta.microseconds * NS_PER_MICROSECOND
         return cls(_in_int64(nanos, "instant from datetime"))
+
+    def _split_microseconds(self) -> tuple[int, int]:
+        """Split this instant into whole microseconds and a nanosecond remainder.
+
+        Floor division, so the remainder is always in ``0..999`` and the
+        microsecond component is always at or before the true instant — on
+        both sides of the epoch. Truncation toward zero would yield negative
+        remainders before 1970 and break monotonicity across the epoch.
+
+        This is the single implementation of the split; the alignment
+        predicate and both datetime conversions derive from it.
+        """
+        return divmod(self.nanos, NS_PER_MICROSECOND)
+
+    @property
+    def is_microsecond_aligned(self) -> bool:
+        """Whether this instant is an exact whole number of microseconds.
+
+        Equivalently: whether :meth:`to_datetime` will succeed rather than
+        raising ``InexactDatetimeError``.
+        """
+        return self._split_microseconds()[1] == 0
+
+    def to_datetime_with_remainder(self) -> tuple[datetime, int]:
+        """The floored instant, plus the sub-microsecond remainder it discards.
+
+        Returns an aware UTC datetime at or before the true instant, and the
+        remainder in nanoseconds, always in ``0..999``. Together the pair is a
+        complete representation of the original instant::
+
+            floored_microseconds * NS_PER_MICROSECOND + remainder == self.nanos
+
+        The loss is returned rather than hidden, so a caller cannot discard it
+        without doing so visibly.
+
+        The datetime component **alone** is not guaranteed to be representable
+        as a ``UtcNanos``. For the lowest 808 nanoseconds of the int64 range
+        the floored microsecond lies just below ``INT64_MIN``, so
+        :meth:`from_datetime` on that datetime raises ``TimeOverflowError``
+        even though the returned pair is correct. No microsecond-aligned value
+        falls in that band, so :meth:`to_datetime` is unaffected.
+        """
+        microseconds, remainder = self._split_microseconds()
+        return EPOCH + timedelta(microseconds=microseconds), remainder
+
+    def to_datetime(self) -> datetime:
+        """This instant as an aware UTC datetime, exactly.
+
+        Raises ``InexactDatetimeError`` when the instant carries a
+        sub-microsecond remainder that a Python ``datetime`` cannot hold. It is
+        never truncated and never rounded, so a datetime returned from here is
+        always the true instant. Use :meth:`to_datetime_with_remainder` to
+        accept the loss deliberately.
+        """
+        moment, remainder = self.to_datetime_with_remainder()
+        if remainder != 0:
+            raise InexactDatetimeError(
+                f"instant {self.nanos} carries a sub-microsecond remainder of "
+                f"{remainder} ns, which a datetime cannot hold; use "
+                f"to_datetime_with_remainder() to accept the loss explicitly"
+            )
+        return moment

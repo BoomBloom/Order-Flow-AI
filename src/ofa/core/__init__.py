@@ -6,6 +6,7 @@ steps; protocol declarations arrive after that.
 """
 
 from ofa.core.errors import (
+    InexactDatetimeError,
     InvalidTickSizeError,
     NaiveDatetimeError,
     NonUtcDatetimeError,
@@ -26,6 +27,7 @@ __all__ = [
     "NS_PER_MICROSECOND",
     "NS_PER_SECOND",
     "PRICE_SCALE",
+    "InexactDatetimeError",
     "InvalidTickSizeError",
     "NaiveDatetimeError",
     "NonUtcDatetimeError",
