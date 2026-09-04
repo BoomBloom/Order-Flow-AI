@@ -23,9 +23,12 @@ from enum import Enum
 from typing import Final, cast
 
 import ofa
+from ofa.core.capability import CapabilityEntry, CapabilityRecord, DataRequirement
 from ofa.core.hashing import content_hash
 from ofa.core.ids import INT32_MAX, INT32_MIN, InstrumentId, ProvenanceId, RunId
+from ofa.core.lifecycle import ResetReason, RollPolicy
 from ofa.core.money import Price, Ticks
+from ofa.core.provenance import ProvenanceTier
 from ofa.core.time import TradeDate, UtcNanos
 
 #: The importable source root, so the child interpreter can find the package
@@ -249,3 +252,127 @@ def test_identifier_child_digest_matches_this_process() -> None:
         "beside": {"px": Price(1_500_000_000), "day": TradeDate(2024, 3, 11)},
     }
     assert _run_identifiers(SEED_A, "natural")["content"] == content_hash(payload)
+
+
+# --------------------------------------------------------------------------
+# M1: provenance, requirements and capability records across processes
+# --------------------------------------------------------------------------
+
+# A third program, again rather than an edit to the first two, so their
+# payloads and assertions stay exactly as reviewed. The flag members are
+# combined in a caller-chosen order, which is the property that matters here:
+# a composite flag's canonical form must not remember how it was built.
+_CAPABILITY_PROGRAM: Final = r"""
+import json, sys
+
+from ofa.core.capability import CapabilityEntry, CapabilityRecord, DataRequirement
+from ofa.core.hashing import canonical_bytes, content_hash, params_hash
+from ofa.core.lifecycle import ResetReason, RollPolicy
+from ofa.core.provenance import ProvenanceTier
+
+DR = DataRequirement
+OBSERVED = CapabilityEntry(present=True, tier=ProvenanceTier.OBSERVED)
+INFERRED = CapabilityEntry(present=True, tier=ProvenanceTier.INFERRED)
+ABSENT = CapabilityEntry(present=False, tier=None)
+
+members = [DR.TRADES, DR.AGGRESSOR, DR.BBO, DR.MBP_10]
+pairs = [
+    ("TRADES", OBSERVED),
+    ("AGGRESSOR", INFERRED),
+    ("MBO", ABSENT),
+]
+if sys.argv[1] == "reversed":
+    members = list(reversed(members))
+    pairs = list(reversed(pairs))
+
+required = DR(0)
+for member in members:
+    required |= member
+
+record = CapabilityRecord(tuple((getattr(DR, name), entry) for name, entry in pairs))
+
+payload = {
+    "required": required,
+    "empty": DR(0),
+    "record": record,
+    "tiers": [t for t in ProvenanceTier],
+    "roll": RollPolicy.CARRY_ADJUSTED,
+    "reset": ResetReason.SPLIT_SEGMENT_START,
+}
+
+print(json.dumps({
+    "hash_abc": hash("abc"),
+    "canonical": canonical_bytes(payload).decode("ascii"),
+    "content": content_hash(payload),
+    "params": params_hash(payload),
+    "empty_flag": canonical_bytes(DR(0)).decode("ascii"),
+    "composite": canonical_bytes(required).decode("ascii"),
+}))
+"""
+
+
+def _run_capabilities(seed: str, order: str, extra_args: Sequence[str] = ()) -> dict[str, object]:
+    return _run(seed, order, extra_args, program=_CAPABILITY_PROGRAM)
+
+
+def test_capability_structures_hash_identically_across_processes() -> None:
+    first = _run_capabilities(SEED_A, "natural")
+    second = _run_capabilities(SEED_B, "natural")
+
+    assert first["hash_abc"] != second["hash_abc"]
+
+    assert first["canonical"] == second["canonical"]
+    assert first["content"] == second["content"]
+    assert first["params"] == second["params"]
+
+
+def test_flag_combination_order_does_not_survive_a_process_boundary() -> None:
+    """Built in one order here, the reverse there — same bytes either way."""
+    natural = _run_capabilities(SEED_A, "natural")
+    reversed_order = _run_capabilities(SEED_B, "reversed")
+
+    assert natural["hash_abc"] != reversed_order["hash_abc"]
+    assert natural["composite"] == reversed_order["composite"]
+    assert natural["canonical"] == reversed_order["canonical"]
+    assert natural["content"] == reversed_order["content"]
+
+
+def test_empty_flag_canonicalizes_in_a_fresh_process() -> None:
+    """The value whose name is None, in an interpreter that never saw a fixture."""
+    result = _run_capabilities(SEED_B, "natural")
+    assert result["empty_flag"] == ('["flag","ofa.core.capability","DataRequirement",[]]')
+
+
+def test_capability_forced_randomization_does_not_change_the_result() -> None:
+    first = _run_capabilities("random", "natural", extra_args=["-R"])
+    second = _run_capabilities("random", "reversed", extra_args=["-R"])
+
+    assert first["canonical"] == second["canonical"]
+    assert first["content"] == second["content"]
+
+
+def test_capability_child_digest_matches_this_process() -> None:
+    """The child's capability digest is reproducible here, not merely stable."""
+    observed = CapabilityEntry(present=True, tier=ProvenanceTier.OBSERVED)
+    inferred = CapabilityEntry(present=True, tier=ProvenanceTier.INFERRED)
+    absent = CapabilityEntry(present=False, tier=None)
+    payload = {
+        "required": (
+            DataRequirement.TRADES
+            | DataRequirement.AGGRESSOR
+            | DataRequirement.BBO
+            | DataRequirement.MBP_10
+        ),
+        "empty": DataRequirement(0),
+        "record": CapabilityRecord(
+            (
+                (DataRequirement.TRADES, observed),
+                (DataRequirement.AGGRESSOR, inferred),
+                (DataRequirement.MBO, absent),
+            )
+        ),
+        "tiers": list(ProvenanceTier),
+        "roll": RollPolicy.CARRY_ADJUSTED,
+        "reset": ResetReason.SPLIT_SEGMENT_START,
+    }
+    assert _run_capabilities(SEED_A, "natural")["content"] == content_hash(payload)

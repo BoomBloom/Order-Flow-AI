@@ -16,12 +16,13 @@ from collections import Counter, OrderedDict, defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from enum import Enum, IntEnum, StrEnum
+from enum import KEEP, Enum, Flag, IntEnum, IntFlag, StrEnum
 from typing import Final, NamedTuple, cast
 
 import pytest
 
 from ofa.core import hashing
+from ofa.core.capability import CapabilityEntry, CapabilityRecord, DataRequirement
 from ofa.core.errors import (
     CanonicalTypeError,
     CanonicalValueError,
@@ -36,7 +37,9 @@ from ofa.core.hashing import (
     params_hash,
 )
 from ofa.core.ids import INT32_MAX, INT32_MIN, InstrumentId, ProvenanceId, RunId
+from ofa.core.lifecycle import ResetReason, RollPolicy
 from ofa.core.money import Price, Ticks
+from ofa.core.provenance import ProvenanceTier
 from ofa.core.time import TradeDate, UtcNanos
 
 
@@ -235,8 +238,129 @@ IDENTIFIER_VECTORS: Final[list[tuple[object, bytes, str]]] = [
     ),
 ]
 
-#: Every pinned vector, Step 3a and Step 3b together.
-ALL_VECTORS: Final[list[tuple[object, bytes, str]]] = GOLDEN_VECTORS + IDENTIFIER_VECTORS
+_OBSERVED_ENTRY: Final = CapabilityEntry(present=True, tier=ProvenanceTier.OBSERVED)
+_INFERRED_ENTRY: Final = CapabilityEntry(present=True, tier=ProvenanceTier.INFERRED)
+_ABSENT_ENTRY: Final = CapabilityEntry(present=False, tier=None)
+
+#: M1 vectors. A third table, again so the two tables above stay visibly
+#: untouched: the flag and capability tags are additive and must disturb
+#: nothing already pinned.
+M1_VECTORS: Final[list[tuple[object, bytes, str]]] = [
+    (
+        ProvenanceTier.OBSERVED,
+        b'["enum","ofa.core.provenance","ProvenanceTier","OBSERVED"]',
+        "b669d2cb46af0dd2e85be6d00bbe73904abcf954152fa54b2b69153189784fc7",
+    ),
+    (
+        ProvenanceTier.RECONSTRUCTED,
+        b'["enum","ofa.core.provenance","ProvenanceTier","RECONSTRUCTED"]',
+        "859a6e2e73833319ac68c671c771ae32b40643019507762b6e759fef59c0358b",
+    ),
+    (
+        ProvenanceTier.INFERRED,
+        b'["enum","ofa.core.provenance","ProvenanceTier","INFERRED"]',
+        "4daef4bf1c33e5db87cea592ee5149e8c5fb2b1e991a9599136a6c726b8007b8",
+    ),
+    (
+        ProvenanceTier.SIMULATED,
+        b'["enum","ofa.core.provenance","ProvenanceTier","SIMULATED"]',
+        "1760d466428a181cc89987ac565f55714302dba84618c28a055dfd06120c17cf",
+    ),
+    (
+        RollPolicy.RESET,
+        b'["enum","ofa.core.lifecycle","RollPolicy","RESET"]',
+        "6d356818cc57741680c2c785cc1dbf4e7b12e339ce78b9da529961a621b9fceb",
+    ),
+    (
+        RollPolicy.CARRY_ADJUSTED,
+        b'["enum","ofa.core.lifecycle","RollPolicy","CARRY_ADJUSTED"]',
+        "67b467af0d7dc1612e3716503a0b6d063eb8de0697f6cd7a08415630644e18c7",
+    ),
+    (
+        ResetReason.SPLIT_SEGMENT_START,
+        b'["enum","ofa.core.lifecycle","ResetReason","SPLIT_SEGMENT_START"]',
+        "f99819130be5afa04436fd986476589cb33aaa33b23e9cae24c3e2af6da2394d",
+    ),
+    (
+        DataRequirement(0),
+        b'["flag","ofa.core.capability","DataRequirement",[]]',
+        "42b9055b966e00e139af6a90f9356c0fa40c4beb690bb23fd2913ad36c536133",
+    ),
+    (
+        DataRequirement.TRADES,
+        b'["flag","ofa.core.capability","DataRequirement",["TRADES"]]',
+        "395b7bed5384a5515f413b433c21330096729fc10043a59d6fc448d02f5b0a5f",
+    ),
+    (
+        DataRequirement.STATUS,
+        b'["flag","ofa.core.capability","DataRequirement",["STATUS"]]',
+        "eae51fbf55926597259d387135fb6f40fe5afb4227dc6ae12ca30db3707b4530",
+    ),
+    (
+        DataRequirement.TRADES | DataRequirement.BBO,
+        b'["flag","ofa.core.capability","DataRequirement",["BBO","TRADES"]]',
+        "48a2c3856c4ca967141f30527f755d5eb7dab300ccf95aea3aaf45eb1fb051f7",
+    ),
+    (
+        DataRequirement.BBO | DataRequirement.TRADES,
+        b'["flag","ofa.core.capability","DataRequirement",["BBO","TRADES"]]',
+        "48a2c3856c4ca967141f30527f755d5eb7dab300ccf95aea3aaf45eb1fb051f7",
+    ),
+    (
+        DataRequirement.TRADES
+        | DataRequirement.AGGRESSOR
+        | DataRequirement.BBO
+        | DataRequirement.MBP_10
+        | DataRequirement.MBO
+        | DataRequirement.TS_RECV
+        | DataRequirement.STATUS,
+        b'["flag","ofa.core.capability","DataRequirement",'
+        b'["AGGRESSOR","BBO","MBO","MBP_10","STATUS","TRADES","TS_RECV"]]',
+        "c560d1468519ec7a5a2c07c3b31788006078b7022444affe6d537842787c3d1b",
+    ),
+    (
+        _OBSERVED_ENTRY,
+        b'["capability_entry",true,["enum","ofa.core.provenance","ProvenanceTier","OBSERVED"]]',
+        "1eb5bad70d36f84b98b365121ade6e3fd5de75ad81ff6df12c7bf0bf10fb01ce",
+    ),
+    (
+        _INFERRED_ENTRY,
+        b'["capability_entry",true,["enum","ofa.core.provenance","ProvenanceTier","INFERRED"]]',
+        "aabaaf919322c320b49cf9a40590036a3461157de91a29d4a4ee3d5b11dd0c1d",
+    ),
+    (
+        _ABSENT_ENTRY,
+        b'["capability_entry",false,["none"]]',
+        "1ee2205d926590349f6a3569ad32697f9a09d5d58c37239105acd7263d73f1c9",
+    ),
+    (
+        CapabilityRecord(()),
+        b'["capability_record",[]]',
+        "1a2e0a9afc6a0ca803ed7227a212cb4e17822094f3dbd4ba680cd833d63a7fbb",
+    ),
+    (
+        CapabilityRecord(
+            (
+                (DataRequirement.TRADES, _OBSERVED_ENTRY),
+                (DataRequirement.AGGRESSOR, _INFERRED_ENTRY),
+                (DataRequirement.MBO, _ABSENT_ENTRY),
+            )
+        ),
+        b'["capability_record",[[["flag","ofa.core.capability","DataRequirement",'
+        b'["TRADES"]],["capability_entry",true,["enum","ofa.core.provenance",'
+        b'"ProvenanceTier","OBSERVED"]]],[["flag","ofa.core.capability",'
+        b'"DataRequirement",["AGGRESSOR"]],["capability_entry",true,["enum",'
+        b'"ofa.core.provenance","ProvenanceTier","INFERRED"]]],[["flag",'
+        b'"ofa.core.capability","DataRequirement",["MBO"]],["capability_entry",'
+        b'false,["none"]]]]]',
+        "1ab3772a5627c05b09c832884a196d399e843735068c5eb08b1e7e3d28a94a33",
+    ),
+]
+
+#: Every pinned vector, Step 3a, Step 3b and M1 together.
+ALL_VECTORS: Final[list[tuple[object, bytes, str]]] = (
+    GOLDEN_VECTORS + IDENTIFIER_VECTORS + M1_VECTORS
+)
 
 # --------------------------------------------------------------------------
 # Golden vectors
@@ -272,6 +396,9 @@ def test_golden_vectors_cover_every_canonical_tag() -> None:
         b"run_id",
         b"instrument_id",
         b"provenance_id",
+        b"flag",
+        b"capability_entry",
+        b"capability_record",
     }
 
 
@@ -300,12 +427,203 @@ def test_step_3a_golden_table_is_unchanged() -> None:
     )
 
 
+def test_step_3b_identifier_table_is_unchanged() -> None:
+    """The Step 3b vectors are frozen for the same reason as the Step 3a ones."""
+    fingerprint = hashlib.sha256()
+    for _value, expected, digest in IDENTIFIER_VECTORS:
+        fingerprint.update(expected)
+        fingerprint.update(b"\x00")
+        fingerprint.update(digest.encode("ascii"))
+        fingerprint.update(b"\x00")
+    assert len(IDENTIFIER_VECTORS) == 13
+    assert (
+        fingerprint.hexdigest()
+        == "ea25269bf5a430aff15af6ab08cade16607535c7dbd4d44bf79880d6bad0eb6a"
+    )
+
+
+def test_m1_tags_are_additive_only() -> None:
+    """No M1 tag collides with a tag that already existed."""
+    existing = {
+        canonical_bytes(value).split(b'"')[1] for value, _, _ in GOLDEN_VECTORS + IDENTIFIER_VECTORS
+    }
+    added = {canonical_bytes(value).split(b'"')[1] for value, _, _ in M1_VECTORS}
+    assert {b"flag", b"capability_entry", b"capability_record"} <= added
+    assert added - existing == {b"flag", b"capability_entry", b"capability_record"}
+
+
 def test_identifier_tags_are_additive_only() -> None:
     """No identifier tag collides with a tag that already existed."""
     existing = {canonical_bytes(value).split(b'"')[1] for value, _, _ in GOLDEN_VECTORS}
     added = {canonical_bytes(value).split(b'"')[1] for value, _, _ in IDENTIFIER_VECTORS}
     assert added == {b"run_id", b"instrument_id", b"provenance_id"}
     assert existing.isdisjoint(added)
+
+
+# --------------------------------------------------------------------------
+# M1: flag and capability canonicalization
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("value", "expected", "_digest"), M1_VECTORS)
+def test_m1_canonical_bytes_match_pinned_vectors(
+    value: object, expected: bytes, _digest: str
+) -> None:
+    assert canonical_bytes(value) == expected
+
+
+@pytest.mark.parametrize(("value", "_expected", "digest"), M1_VECTORS)
+def test_m1_content_hash_matches_pinned_vectors(
+    value: object, _expected: bytes, digest: str
+) -> None:
+    assert content_hash(value) == digest
+
+
+@pytest.mark.parametrize(("value", "_expected", "_digest"), M1_VECTORS)
+def test_m1_vectors_are_valid_json(value: object, _expected: bytes, _digest: str) -> None:
+    parsed = json.loads(canonical_bytes(value).decode("ascii"))
+    assert isinstance(parsed, list)
+    assert isinstance(parsed[0], str)
+
+
+def test_empty_flag_canonicalizes_instead_of_raising() -> None:
+    """Its .name is None; reaching the encoder previously raised AttributeError."""
+    assert DataRequirement(0).name is None
+    assert canonical_bytes(DataRequirement(0)) == (
+        b'["flag","ofa.core.capability","DataRequirement",[]]'
+    )
+
+
+def test_no_flag_value_escapes_the_error_contract() -> None:
+    """Every value of the flag, empty through full, canonicalizes cleanly."""
+    for raw in range(0, 128):
+        produced = canonical_bytes(DataRequirement(raw))
+        produced.decode("ascii")
+        assert produced.startswith(b'["flag",')
+
+
+class _FirstOrder(IntFlag):
+    ALPHA = 1
+    BETA = 2
+
+
+class _SecondOrder(IntFlag):
+    BETA = 2
+    ALPHA = 1
+
+
+def test_composite_canonical_form_ignores_declaration_order() -> None:
+    """Flag.name joins members in declaration order; the canonical form must not."""
+    first = _FirstOrder.ALPHA | _FirstOrder.BETA
+    second = _SecondOrder.ALPHA | _SecondOrder.BETA
+    assert first.name != second.name
+    assert first.value == second.value
+    assert json.loads(canonical_bytes(first).decode("ascii"))[3] == ["ALPHA", "BETA"]
+    assert json.loads(canonical_bytes(second).decode("ascii"))[3] == ["ALPHA", "BETA"]
+
+
+def test_composite_canonical_form_ignores_combination_order() -> None:
+    left = DataRequirement.TRADES | DataRequirement.BBO
+    right = DataRequirement.BBO | DataRequirement.TRADES
+    assert canonical_bytes(left) == canonical_bytes(right)
+    assert content_hash(left) == content_hash(right)
+
+
+class _WithAlias(IntFlag):
+    TRADES = 1
+    BBO = 2
+    BOTH = 3
+
+
+class _Kept(IntFlag, boundary=KEEP):
+    """A flag that retains undeclared bits, as IntFlag does by default."""
+
+    ALPHA = 1
+
+
+def test_a_flag_carrying_undeclared_bits_is_refused() -> None:
+    """It would otherwise canonicalize as the members it does contain."""
+    assert _Kept(4).name is None
+    assert tuple(_Kept(4)) == ()
+    with pytest.raises(CanonicalValueError, match="does not decompose"):
+        canonical_bytes(_Kept(4))
+    with pytest.raises(CanonicalValueError, match="does not decompose"):
+        canonical_bytes(_Kept(5))
+
+
+def test_an_undecomposable_flag_never_collides_with_the_empty_flag() -> None:
+    """The collision this guard exists to prevent: unequal values, one digest."""
+    assert _Kept(0) != _Kept(4)
+    assert canonical_bytes(_Kept(0)) == b'["flag","tests.unit.test_hashing","_Kept",[]]'
+    with pytest.raises(CanonicalValueError):
+        canonical_bytes(_Kept(4))
+
+
+def test_a_nameless_member_is_refused_rather_than_encoded() -> None:
+    """A defensive guard the public dispatch cannot currently reach.
+
+    Flag iteration yields only named members and plain enum members always have
+    names, so nothing routes a nameless member into the encoder today. The
+    guard is asserted directly so it cannot rot into a silent empty string.
+    """
+    nameless = _Kept(4)
+    assert nameless.name is None
+    with pytest.raises(CanonicalValueError, match="no member name"):
+        hashing._member_name(nameless, "probe")
+
+
+def test_a_composite_alias_matches_the_union_of_its_parts() -> None:
+    assert canonical_bytes(_WithAlias.BOTH) == canonical_bytes(_WithAlias.TRADES | _WithAlias.BBO)
+
+
+def test_a_flag_is_never_its_integer_or_a_plain_enum() -> None:
+    flag = DataRequirement.TRADES
+    assert canonical_bytes(flag) != canonical_bytes(flag.value)
+    assert canonical_bytes(flag).startswith(b'["flag",')
+    assert canonical_bytes(ProvenanceTier.OBSERVED).startswith(b'["enum",')
+
+
+def test_plain_enums_keep_the_enum_tag_unchanged() -> None:
+    """Adding the flag path must not alter existing enum semantics."""
+    for value in (ProvenanceTier.OBSERVED, RollPolicy.RESET, ResetReason.HALT_RESUME):
+        assert canonical_bytes(value).startswith(b'["enum",')
+    assert canonical_bytes(_Side.BUY).startswith(b'["enum",')
+    assert canonical_bytes(_Tier.OBSERVED).startswith(b'["enum",')
+
+
+def test_int_enum_and_str_enum_are_not_treated_as_flags() -> None:
+    assert not isinstance(_Side.BUY, Flag)
+    assert not isinstance(_Tier.OBSERVED, Flag)
+
+
+def test_two_flag_types_with_the_same_member_names_differ() -> None:
+    assert canonical_bytes(_FirstOrder.ALPHA) != canonical_bytes(_WithAlias.TRADES)
+
+
+def test_capability_entry_distinguishes_presence_and_tier() -> None:
+    observed = CapabilityEntry(present=True, tier=ProvenanceTier.OBSERVED)
+    inferred = CapabilityEntry(present=True, tier=ProvenanceTier.INFERRED)
+    absent = CapabilityEntry(present=False, tier=None)
+    forms = {canonical_bytes(entry) for entry in (observed, inferred, absent)}
+    assert len(forms) == 3
+
+
+def test_capability_record_order_does_not_reach_the_canonical_form() -> None:
+    entry = CapabilityEntry(present=True, tier=ProvenanceTier.OBSERVED)
+    other = CapabilityEntry(present=False, tier=None)
+    forward = CapabilityRecord(((DataRequirement.TRADES, entry), (DataRequirement.MBO, other)))
+    backward = CapabilityRecord(((DataRequirement.MBO, other), (DataRequirement.TRADES, entry)))
+    assert canonical_bytes(forward) == canonical_bytes(backward)
+
+
+def test_an_empty_record_is_not_an_empty_sequence_or_map() -> None:
+    forms = {
+        canonical_bytes(CapabilityRecord(())),
+        canonical_bytes([]),
+        canonical_bytes({}),
+        canonical_bytes(DataRequirement(0)),
+    }
+    assert len(forms) == 4
 
 
 # --------------------------------------------------------------------------

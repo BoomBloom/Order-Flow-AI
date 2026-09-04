@@ -146,3 +146,48 @@ class InvalidIdentifierError(OfaError, ValueError):
     relative-path name, or carries a path separator, whitespace, a control
     character or anything unencodable.
     """
+
+
+class ProvenanceTypeError(OfaError, TypeError):
+    """A value that should have been a provenance tier was something else.
+
+    Raised where a ``ProvenanceTier`` is required and a string, an integer or
+    another enum was supplied. Tier names are not interchangeable with the
+    tiers themselves: comparing ``"OBSERVED"`` against a tier would silently
+    succeed or silently fail depending on the direction.
+    """
+
+
+class IncomparableProvenanceError(OfaError, ValueError):
+    """``SIMULATED`` was compared against a data tier.
+
+    The three data tiers are ordered — ``OBSERVED`` is stronger than
+    ``RECONSTRUCTED``, which is stronger than ``INFERRED`` — but ``SIMULATED``
+    is not weaker or stronger than any of them. It describes a counterfactual
+    about a hypothetical order of ours, not an observation of the market, so
+    asking whether it meets a market-data requirement is a category error.
+
+    It is raised rather than answered ``False`` on purpose. ``False`` would be
+    handled as an ordinary capability shortfall — a missing feed — when the
+    real fault is that simulated output was offered as input data.
+    """
+
+
+class CapabilityTypeError(OfaError, TypeError):
+    """A capability record or entry was given a value of the wrong type.
+
+    Raised for a non-``DataRequirement`` where a capability is required, a
+    non-``CapabilityEntry`` where an entry is required, and a non-``bool``
+    presence flag — including ``0`` and ``1``, which are rejected so that
+    presence cannot be expressed as a number.
+    """
+
+
+class InvalidCapabilityError(OfaError, ValueError):
+    """A capability record or entry violates its own invariants.
+
+    Raised when presence and tier disagree — a capability recorded as present
+    with no tier, or absent with one — and when a record is keyed by a
+    composite or empty requirement rather than a single capability, or repeats
+    a capability.
+    """

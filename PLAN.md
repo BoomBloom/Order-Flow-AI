@@ -95,6 +95,7 @@ never an incidental implementation choice. Full detail and blast radius:
 | 7 | Storage layout and manifest schema, including per-partition capability records |
 | 8 | Streaming-only, single-implementation feature engine; batch is replay; an optimization replaces the reference implementation and never sits beside it |
 | 9 | Labels are a separate pass from features; `label_horizon` drives purge width |
+| 10 | Canonical content-hash format: type-tagged canonical JSON hashed as SHA-256 over an `ofa-canon-1` version prefix, full lowercase hex digest |
 
 Two further decisions, taken at the architecture gate:
 

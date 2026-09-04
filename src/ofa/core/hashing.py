@@ -39,6 +39,7 @@ JSON array whose first element names the type::
     [a, b] / (a, b)       ["seq",[<a>,<b>]]
     {"b": 1, "a": 2}      ["map",[["a",<2>],["b",<1>]]]
     Side.BUY              ["enum","pkg.mod","Side","BUY"]
+    Reqs.TRADES|Reqs.BBO  ["flag","pkg.mod","Reqs",["BBO","TRADES"]]
     Price(1500000000)     ["price",1500000000]
     Ticks(-6)             ["ticks",-6]
     UtcNanos(-1)          ["utc_nanos",-1]
@@ -46,6 +47,8 @@ JSON array whose first element names the type::
     RunId("abc")          ["run_id","abc"]
     InstrumentId(7)       ["instrument_id",7]
     ProvenanceId(3)       ["provenance_id",3]
+    CapabilityEntry(...)  ["capability_entry",true,["enum",…,"OBSERVED"]]
+    CapabilityRecord(...) ["capability_record",[[<flag>,<entry>],…]]
 
 The supported set is **closed**. Anything not listed above raises rather than
 being canonicalized on a guess. New tags may be added later; because a tag is
@@ -80,9 +83,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from enum import Enum
+from enum import Enum, Flag
 from typing import Final
 
+from ofa.core.capability import CapabilityEntry, CapabilityRecord
 from ofa.core.errors import CanonicalTypeError, CanonicalValueError
 from ofa.core.ids import InstrumentId, ProvenanceId, RunId
 from ofa.core.money import Price, Ticks
@@ -135,6 +139,74 @@ def _encodable_str(value: str, what: str) -> str:
     return value
 
 
+def _member_name(member: Enum, what: str) -> str:
+    """Return an enum member's name, refusing an unnamed one.
+
+    ``Enum.name`` is ``None`` for a flag value that names no member — most
+    obviously the empty flag. Reaching the encoder with ``None`` would raise a
+    bare ``AttributeError``, escaping the error contract every other path in
+    this module keeps, so it is caught here instead.
+    """
+    name = member.name
+    if name is None:
+        raise CanonicalValueError(
+            f"{what} has no member name and no canonical form; it is an unnamed "
+            f"value of {type(member).__qualname__}"
+        )
+    return _encodable_str(name, what)
+
+
+def _canonicalize_flag(value: Flag) -> _Canonical:
+    """Canonicalize a flag as the sorted names of the members it contains.
+
+    A flag is a *set* of capabilities, so its canonical form is a set: the
+    members it decomposes into, sorted by name. Two things follow, and both are
+    the reason this path exists rather than reusing the enum tag.
+
+    Declaration order cannot affect the result. ``Flag.name`` for a composite
+    is the members joined in *definition* order, so ``TRADES|BBO`` and
+    ``BBO|TRADES`` — the same value, from two enums whose members were declared
+    in different orders — would hash differently. Reordering a member list is
+    the kind of edit a reviewer waves through as cosmetic; it must not move
+    every digest that contains a requirement.
+
+    The empty flag canonicalizes as an empty list. Its ``name`` is ``None``,
+    which previously reached the encoder and raised ``AttributeError``.
+
+    Aliases collapse correctly for free: a composite alias and the explicit
+    union of its parts are the same value, decompose identically, and so
+    produce identical bytes.
+
+    A value that does not decompose into its own members is refused. ``IntFlag``
+    keeps undeclared bits by default, and those bits are invisible to
+    iteration — so a value carrying one would canonicalize as the members it
+    does contain, giving two unequal values the same digest.
+    """
+    cls = type(value)
+    names: list[str] = []
+    covered = 0
+    for member in value:
+        names.append(_member_name(member, "flag member name"))
+        covered |= member.value
+    if covered != value.value:
+        # Undeclared bits are invisible to iteration, so a value carrying them
+        # would canonicalize as the members it *does* contain — and two unequal
+        # values would share a digest. IntFlag keeps such bits by default
+        # (boundary=KEEP), which is how DataRequirement(0) and
+        # DataRequirement(128) came to look identical.
+        raise CanonicalValueError(
+            f"{cls.__qualname__} value {value.value} does not decompose into its "
+            f"members: the bits {value.value & ~covered} name nothing, so the value "
+            f"has no faithful canonical form"
+        )
+    return [
+        "flag",
+        _encodable_str(cls.__module__, "flag module"),
+        _encodable_str(cls.__qualname__, "flag qualified name"),
+        sorted(names),
+    ]
+
+
 def _canonicalize_enum(value: Enum) -> _Canonical:
     """Canonicalize an enum member by identity, never by value.
 
@@ -154,7 +226,7 @@ def _canonicalize_enum(value: Enum) -> _Canonical:
         "enum",
         _encodable_str(cls.__module__, "enum module"),
         _encodable_str(cls.__qualname__, "enum qualified name"),
-        _encodable_str(value.name, "enum member name"),
+        _member_name(value, "enum member name"),
     ]
 
 
@@ -205,6 +277,13 @@ def _canonicalize(value: object, depth: int) -> _Canonical:
     # Before int: bool is a subclass of int, and True would otherwise be 1.
     if isinstance(value, bool):
         return ["bool", value]
+
+    # Before Enum: a Flag is a set of members, not one member, and its own
+    # tag is what makes it insensitive to declaration order and able to express
+    # the empty value. Plain enums — including IntEnum and StrEnum — are not
+    # Flags and keep the enum tag exactly as before.
+    if isinstance(value, Flag):
+        return _canonicalize_flag(value)
 
     # Before int and str: IntEnum and StrEnum are subclasses of those, and
     # would otherwise collide with the raw value they happen to carry.
@@ -279,6 +358,22 @@ def _canonicalize(value: object, depth: int) -> _Canonical:
     if type(value) is UtcNanos:
         return ["utc_nanos", value.nanos]
 
+    if type(value) is CapabilityEntry:
+        return [
+            "capability_entry",
+            value.present,
+            ["none"] if value.tier is None else _canonicalize_enum(value.tier),
+        ]
+
+    if type(value) is CapabilityRecord:
+        return [
+            "capability_record",
+            [
+                [_canonicalize_flag(capability), _canonicalize(entry, depth + 1)]
+                for capability, entry in value.entries
+            ],
+        ]
+
     if type(value) is TradeDate:
         # isoformat() is already the type's canonical string form: zero-padded,
         # locale-independent, and produced by the standard library.
@@ -301,7 +396,8 @@ def _canonicalize(value: object, depth: int) -> _Canonical:
     raise CanonicalTypeError(
         f"{type(value).__name__} is not a supported canonical type. Supported: None, "
         f"bool, int, str, bytes, list, tuple, dict with str keys, Enum, Price, Ticks, "
-        f"UtcNanos, TradeDate, RunId, InstrumentId, ProvenanceId"
+        f"UtcNanos, TradeDate, RunId, InstrumentId, ProvenanceId, CapabilityEntry, "
+        f"CapabilityRecord"
     )
 
 

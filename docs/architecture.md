@@ -624,7 +624,25 @@ migration plan — never an incidental implementation choice.
 | 7 | **Storage layout and manifest schema** | `data/{raw,canonical,features,labels,runs}/...` with per-partition manifests and capability records | Lineage for every stored artifact |
 | 8 | **Streaming-only, single-implementation feature engine** | One code path per feature; batch is replay | The project's central causality guarantee |
 | 9 | **Labels separated from features** | `labels/` sibling package, CI import check, `label_horizon` drives purging | Every split, purge, and validation result |
+| 10 | **Canonical content-hash format** | Type-tagged canonical JSON — compact separators, ASCII escaping, string-only mapping keys sorted by code point, sets and floats rejected — hashed as SHA-256 over an `ofa-canon-1` version prefix, rendered as the full 64-character lowercase hex digest | Every `feature_id`, every stored feature partition path, every manifest digest, every experiment record |
 
 Raw data immutability is what makes items 4, 5, and 7 recoverable at all: a
 partition-key or ordering change is a rebuild, not a data loss. That property
 is itself non-negotiable.
+
+Item 10 is the newest and the least obvious, so it is worth stating plainly.
+`params_hash` is what makes a `feature_id` reproducible across processes and
+machines, and a `feature_id` is a stored path. Changing a type tag, the key
+ordering, the separators, the encoding, or the prefix would therefore rename
+every feature partition ever written and invalidate every experiment record
+that references one — silently, because the new hash is just as valid-looking
+as the old one. Python's own `hash()` cannot be used at all: it is salted per
+process, so it would break reproducibility without ever failing a test that
+runs in one process.
+
+The format carries its own version for exactly this reason. The hashed bytes
+begin with `ofa-canon-1`, so a future change to the format is made by bumping
+that version: every digest then changes at once, deliberately and visibly,
+instead of drifting. Adding a **new** type tag is safe and does not require a
+version bump, because a tag is only ever added and never redefined, so no
+digest that exists today can move.
