@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ofa"
+dynamic = ["version"]
+description = "Order Flow AI - deterministic quantitative research platform"
+readme = "README.md"
+requires-python = ">=3.11"
+# Runtime dependencies: none, deliberately. The core domain model is built on
+# the standard library only. See docs/architecture.md section 13.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "hypothesis>=6.100",
+  "mypy>=1.10",
+  "ruff>=0.5",
+]
+
+[tool.hatch.version]
+path = "src/ofa/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ofa"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ofa"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+mypy_path = "src"
+files = ["src", "tests"]
+# tests/unit/test_money.py and tests/property/test_money.py share a basename.
+# Deriving module names from the repository root keeps them distinct without
+# adding __init__.py files to the test tree.
+explicit_package_bases = true
+namespace_packages = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+# tests/unit/test_money.py and tests/property/test_money.py share a basename;
+# importlib import mode keeps them distinct without __init__.py files.
+addopts = "--import-mode=importlib"
