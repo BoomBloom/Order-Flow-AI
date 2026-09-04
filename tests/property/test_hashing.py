@@ -60,18 +60,28 @@ HEX_DIGEST = re.compile(r"\A[0-9a-f]{64}\Z")
 relaxed = settings(suppress_health_check=[HealthCheck.too_slow], deadline=None)
 
 
-def _as_lists(value: object) -> object:
-    """Collapse tuples to lists, so equality means *canonical* equality.
+def _as_key(value: object) -> object:
+    """A comparison key matching *canonical* equality, not Python equality.
 
-    A tuple and a list with the same contents are unequal in Python but share
-    one canonical tag by design, so a raw ``!=`` is not the right predicate for
-    "these should hash differently".
+    The two relations differ in two places, both deliberate:
+
+    * ``False == 0`` and ``True == 1`` in Python, while their canonical forms
+      differ — the whole point of the bool tag.
+    * A tuple is unequal to a list in Python, while their canonical forms are
+      identical — the whole point of sharing the ``seq`` tag.
+
+    So a raw ``==`` is the wrong predicate in both directions. Tagging each
+    leaf with its type and collapsing tuples to lists gives a key that agrees
+    with the canonicalizer.
     """
+    if isinstance(value, bool):
+        return ("bool", value)
     if isinstance(value, (list, tuple)):
-        return [_as_lists(item) for item in value]
+        return ("seq", [_as_key(item) for item in value])
     if isinstance(value, dict):
-        return {key: _as_lists(item) for key, item in value.items()}
-    return value
+        keys = sorted(value)
+        return ("map", keys, [_as_key(value[key]) for key in keys])
+    return (type(value).__name__, value)
 
 
 @given(canonical_values)
@@ -130,7 +140,7 @@ def test_mapping_key_insertion_order_never_matters(
 @given(canonical_values, canonical_values)
 @relaxed
 def test_different_values_produce_different_digests(left: object, right: object) -> None:
-    if _as_lists(left) == _as_lists(right):
+    if _as_key(left) == _as_key(right):
         return
     assert canonical_bytes(left) != canonical_bytes(right)
     assert content_hash(left) != content_hash(right)
@@ -139,7 +149,7 @@ def test_different_values_produce_different_digests(left: object, right: object)
 @given(canonical_values, canonical_values)
 @relaxed
 def test_equal_values_produce_equal_digests(left: object, right: object) -> None:
-    if _as_lists(left) != _as_lists(right):
+    if _as_key(left) != _as_key(right):
         return
     assert canonical_bytes(left) == canonical_bytes(right)
     assert content_hash(left) == content_hash(right)

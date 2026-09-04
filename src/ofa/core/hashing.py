@@ -43,6 +43,9 @@ JSON array whose first element names the type::
     Ticks(-6)             ["ticks",-6]
     UtcNanos(-1)          ["utc_nanos",-1]
     TradeDate(2024,3,11)  ["trade_date","2024-03-11"]
+    RunId("abc")          ["run_id","abc"]
+    InstrumentId(7)       ["instrument_id",7]
+    ProvenanceId(3)       ["provenance_id",3]
 
 The supported set is **closed**. Anything not listed above raises rather than
 being canonicalized on a guess. New tags may be added later; because a tag is
@@ -81,6 +84,7 @@ from enum import Enum
 from typing import Final
 
 from ofa.core.errors import CanonicalTypeError, CanonicalValueError
+from ofa.core.ids import InstrumentId, ProvenanceId, RunId
 from ofa.core.money import Price, Ticks
 from ofa.core.time import TradeDate, UtcNanos
 
@@ -207,6 +211,21 @@ def _canonicalize(value: object, depth: int) -> _Canonical:
     if isinstance(value, Enum):
         return _canonicalize_enum(value)
 
+    # Before int and str. These are not subclasses of their payload types
+    # today, so the order is not strictly required — it is here so that an
+    # identifier can never be canonicalized as a bare number or a bare string
+    # even if one of them were ever reshaped. The distinct tags are what keep
+    # 3, InstrumentId(3), ProvenanceId(3), "3" and RunId("3") five different
+    # values.
+    if type(value) is RunId:
+        return ["run_id", _encodable_str(value.value, "RunId.value")]
+
+    if type(value) is InstrumentId:
+        return ["instrument_id", value.value]
+
+    if type(value) is ProvenanceId:
+        return ["provenance_id", value.value]
+
     if isinstance(value, int):
         if type(value) is not int:
             raise CanonicalTypeError(
@@ -282,7 +301,7 @@ def _canonicalize(value: object, depth: int) -> _Canonical:
     raise CanonicalTypeError(
         f"{type(value).__name__} is not a supported canonical type. Supported: None, "
         f"bool, int, str, bytes, list, tuple, dict with str keys, Enum, Price, Ticks, "
-        f"UtcNanos, TradeDate"
+        f"UtcNanos, TradeDate, RunId, InstrumentId, ProvenanceId"
     )
 
 

@@ -22,7 +22,12 @@ from typing import Final, NamedTuple, cast
 import pytest
 
 from ofa.core import hashing
-from ofa.core.errors import CanonicalTypeError, CanonicalValueError, OfaError
+from ofa.core.errors import (
+    CanonicalTypeError,
+    CanonicalValueError,
+    InvalidIdentifierError,
+    OfaError,
+)
 from ofa.core.hashing import (
     _MAX_CANONICAL_DEPTH,
     CANONICAL_FORMAT_VERSION,
@@ -30,6 +35,7 @@ from ofa.core.hashing import (
     content_hash,
     params_hash,
 )
+from ofa.core.ids import INT32_MAX, INT32_MIN, InstrumentId, ProvenanceId, RunId
 from ofa.core.money import Price, Ticks
 from ofa.core.time import TradeDate, UtcNanos
 
@@ -158,6 +164,80 @@ GOLDEN_VECTORS: Final[list[tuple[object, bytes, str]]] = [
 ]
 
 
+#: Step 3b identifier vectors. These live in their own table so that the Step
+#: 3a table above remains visibly, byte-for-byte untouched: adding a canonical
+#: tag is additive and must not disturb a single digest already pinned.
+IDENTIFIER_VECTORS: Final[list[tuple[object, bytes, str]]] = [
+    (
+        RunId("abc"),
+        b'["run_id","abc"]',
+        "400dfb9078c0489a887e9198b76161823254ed22da925461fbf0dccb874beaa7",
+    ),
+    (
+        RunId("Run-A"),
+        b'["run_id","Run-A"]',
+        "e14de8977639e7ce1bb8921d8c003e7c97495bdf16c1819b81c1e5ea6ba02944",
+    ),
+    (
+        RunId("3"),
+        b'["run_id","3"]',
+        "1b84788d38bc2fb6289b5543d23b74e7bf8f760a39b7bc3a071ae7468b0f857a",
+    ),
+    (
+        RunId("\u00e9t\u00e9"),
+        b'["run_id","\\u00e9t\\u00e9"]',
+        "6cbd4a75ab28a8df705002d0947f5ebc8ff4de59bb8ace6b3b8ecc183a8dec2b",
+    ),
+    (
+        InstrumentId(0),
+        b'["instrument_id",0]',
+        "df159ef8405e613d2b500a287caf2ab69e1b0667e485e1f120532c19ee01bb16",
+    ),
+    (
+        InstrumentId(7),
+        b'["instrument_id",7]',
+        "d708a1dd9a4c44f3f2dce0552978e126a808f9d07ea507e6754b9dcb639d6293",
+    ),
+    (
+        InstrumentId(-1),
+        b'["instrument_id",-1]',
+        "99bf194048c38c5a081710fc208bb05094444cb5480fb37534799f01ec8cc505",
+    ),
+    (
+        InstrumentId(INT32_MIN),
+        b'["instrument_id",-2147483648]',
+        "8c7808c3af598e44d703671c7c424564208ef1425688f6aa11e14217cdcc6e5b",
+    ),
+    (
+        InstrumentId(INT32_MAX),
+        b'["instrument_id",2147483647]',
+        "f8e2bae05531081c50ed59800605c7031c76504d41469c9b68af2674b723591c",
+    ),
+    (
+        ProvenanceId(0),
+        b'["provenance_id",0]',
+        "53ee3f6a9951c0969ae4ae6d1cc99ddbca773c0ea5682d0fb532f535e266d776",
+    ),
+    (
+        ProvenanceId(3),
+        b'["provenance_id",3]',
+        "512e56a80059a9d7505a6f98d97ec4cc4929c78d549fcbe7356ec0d72d24a567",
+    ),
+    (
+        ProvenanceId(-1),
+        b'["provenance_id",-1]',
+        "ec8c4230a0440a461d0708552c277cbc97ba61df1dad6c7ed7396a872bd74134",
+    ),
+    (
+        ProvenanceId(INT32_MAX),
+        b'["provenance_id",2147483647]',
+        "bca7121aa5bae463eb2fa6292545f0da00cbe49f0f78f5792d07986c58df7ed8",
+    ),
+]
+
+#: Every pinned vector, Step 3a and Step 3b together.
+ALL_VECTORS: Final[list[tuple[object, bytes, str]]] = GOLDEN_VECTORS + IDENTIFIER_VECTORS
+
 # --------------------------------------------------------------------------
 # Golden vectors
 # --------------------------------------------------------------------------
@@ -175,7 +255,7 @@ def test_content_hash_matches_pinned_vectors(value: object, _expected: bytes, di
 
 def test_golden_vectors_cover_every_canonical_tag() -> None:
     """Every tag the canonicalizer can emit has at least one pinned vector."""
-    tags = {canonical_bytes(value).split(b'"')[1] for value, _, _ in GOLDEN_VECTORS}
+    tags = {canonical_bytes(value).split(b'"')[1] for value, _, _ in ALL_VECTORS}
     assert tags == {
         b"none",
         b"bool",
@@ -189,7 +269,133 @@ def test_golden_vectors_cover_every_canonical_tag() -> None:
         b"utc_nanos",
         b"trade_date",
         b"enum",
+        b"run_id",
+        b"instrument_id",
+        b"provenance_id",
     }
+
+
+# --------------------------------------------------------------------------
+# Step 3a regression guard
+# --------------------------------------------------------------------------
+
+
+def test_step_3a_golden_table_is_unchanged() -> None:
+    """The Step 3a vectors are frozen: adding a tag must disturb none of them.
+
+    A single fingerprint over the whole table, so an edit anywhere in it — a
+    changed byte string, a changed digest, a reordered, added or removed row —
+    fails here rather than being absorbed into a passing parametrized run.
+    """
+    fingerprint = hashlib.sha256()
+    for _value, expected, digest in GOLDEN_VECTORS:
+        fingerprint.update(expected)
+        fingerprint.update(b"\x00")
+        fingerprint.update(digest.encode("ascii"))
+        fingerprint.update(b"\x00")
+    assert len(GOLDEN_VECTORS) == 28
+    assert (
+        fingerprint.hexdigest()
+        == "9db8f755f3bfd5943e39cc0f44d2fcc7bd285f62bb21c3ab8b32bc71b73fd443"
+    )
+
+
+def test_identifier_tags_are_additive_only() -> None:
+    """No identifier tag collides with a tag that already existed."""
+    existing = {canonical_bytes(value).split(b'"')[1] for value, _, _ in GOLDEN_VECTORS}
+    added = {canonical_bytes(value).split(b'"')[1] for value, _, _ in IDENTIFIER_VECTORS}
+    assert added == {b"run_id", b"instrument_id", b"provenance_id"}
+    assert existing.isdisjoint(added)
+
+
+# --------------------------------------------------------------------------
+# Identifier canonicalization
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(("value", "expected", "_digest"), IDENTIFIER_VECTORS)
+def test_identifier_canonical_bytes_match_pinned_vectors(
+    value: object, expected: bytes, _digest: str
+) -> None:
+    assert canonical_bytes(value) == expected
+
+
+@pytest.mark.parametrize(("value", "_expected", "digest"), IDENTIFIER_VECTORS)
+def test_identifier_content_hash_matches_pinned_vectors(
+    value: object, _expected: bytes, digest: str
+) -> None:
+    assert content_hash(value) == digest
+
+
+def test_five_values_holding_three_are_five_distinct_canonical_forms() -> None:
+    """3, InstrumentId(3), ProvenanceId(3), "3" and RunId("3") never conflate."""
+    values: list[object] = [3, InstrumentId(3), ProvenanceId(3), "3", RunId("3")]
+    assert len({canonical_bytes(value) for value in values}) == 5
+    assert len({content_hash(value) for value in values}) == 5
+
+
+@pytest.mark.parametrize("number", [0, 1, 3, -1, INT32_MIN, INT32_MAX])
+def test_an_index_identifier_is_never_its_raw_integer(number: int) -> None:
+    assert canonical_bytes(InstrumentId(number)) != canonical_bytes(number)
+    assert canonical_bytes(ProvenanceId(number)) != canonical_bytes(number)
+    assert content_hash(InstrumentId(number)) != content_hash(number)
+    assert content_hash(ProvenanceId(number)) != content_hash(number)
+
+
+@pytest.mark.parametrize("number", [0, 1, 3, -1, INT32_MIN, INT32_MAX])
+def test_instrument_and_provenance_indices_never_share_a_canonical_form(
+    number: int,
+) -> None:
+    assert canonical_bytes(InstrumentId(number)) != canonical_bytes(ProvenanceId(number))
+    assert content_hash(InstrumentId(number)) != content_hash(ProvenanceId(number))
+
+
+@pytest.mark.parametrize("text", ["3", "abc", "", "Run-A"])
+def test_a_run_id_is_never_its_raw_string(text: str) -> None:
+    if text:
+        assert canonical_bytes(RunId(text)) != canonical_bytes(text)
+        assert content_hash(RunId(text)) != content_hash(text)
+    else:
+        with pytest.raises(InvalidIdentifierError):
+            RunId(text)
+
+
+def test_identifier_canonicalization_is_deterministic() -> None:
+    for value in (RunId("r1"), InstrumentId(7), ProvenanceId(3)):
+        assert canonical_bytes(value) == canonical_bytes(value)
+        assert content_hash(value) == content_hash(value)
+
+
+def test_identifiers_nest_inside_containers() -> None:
+    payload = {
+        "run": RunId("r1"),
+        "instrument": InstrumentId(7),
+        "provenance": [ProvenanceId(0), ProvenanceId(1)],
+    }
+    assert canonical_bytes(payload) == (
+        b'["map",[["instrument",["instrument_id",7]],'
+        b'["provenance",["seq",[["provenance_id",0],["provenance_id",1]]]],'
+        b'["run",["run_id","r1"]]]]'
+    )
+
+
+def test_identifier_canonical_form_reflects_the_run_id_case() -> None:
+    """RunId does not normalize, so neither does its canonical form."""
+    assert canonical_bytes(RunId("Run-A")) != canonical_bytes(RunId("run-a"))
+
+
+def test_an_invalid_run_id_can_never_reach_the_canonicalizer() -> None:
+    """Validation is at construction, so there is no unsafe value to serialize."""
+    for bad in ("", ".", "..", "a/b", "a b", "a\x00b"):
+        with pytest.raises(InvalidIdentifierError):
+            canonical_bytes(RunId(bad))
+
+
+@pytest.mark.parametrize(("value", "_expected", "_digest"), IDENTIFIER_VECTORS)
+def test_identifier_vectors_are_valid_json(value: object, _expected: bytes, _digest: str) -> None:
+    parsed = json.loads(canonical_bytes(value).decode("ascii"))
+    assert isinstance(parsed, list)
+    assert isinstance(parsed[0], str)
 
 
 # --------------------------------------------------------------------------

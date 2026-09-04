@@ -125,3 +125,24 @@ class CanonicalValueError(OfaError, ValueError):
     lone surrogate, which cannot be encoded as UTF-8, or a structure nested
     past the canonical depth limit.
     """
+
+
+class IdentifierTypeError(OfaError, TypeError):
+    """An identifier was given a value of the wrong type.
+
+    Raised for a non-``int`` where an identifier index is required and for a
+    non-``str`` where an opaque token is required, including a subclass of
+    either. ``bool`` is rejected explicitly because it is a subclass of ``int``
+    and would otherwise be read as index 0 or 1.
+    """
+
+
+class InvalidIdentifierError(OfaError, ValueError):
+    """An identifier's value is of the right type but not a valid identifier.
+
+    Raised for an index outside the signed 32-bit range — not an arithmetic
+    overflow, since identifiers support no arithmetic, but simply a value the
+    stored schema cannot hold — and for an opaque token that is empty, is a
+    relative-path name, or carries a path separator, whitespace, a control
+    character or anything unencodable.
+    """
