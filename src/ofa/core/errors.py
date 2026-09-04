@@ -102,3 +102,26 @@ class InvalidTradeDateError(OfaError, ValueError):
     be a trading day: whether a valid date is a session the exchange held is a
     calendar question, answered in the reference layer, not here.
     """
+
+
+class CanonicalTypeError(OfaError, TypeError):
+    """A value has no canonical form because its type is not supported.
+
+    The canonical type set is closed and explicit. A type outside it raises
+    rather than being serialized on a guess, because guessing is how two
+    logically different values acquire the same content hash.
+
+    Raised for floats and sets, for arbitrary objects and dataclasses, for a
+    non-string mapping key, and for a subclass of a supported type — an
+    ``IntEnum``, a ``NamedTuple``, an ``OrderedDict`` — where canonicalizing it
+    as its base would silently discard the identity the subclass carries.
+    """
+
+
+class CanonicalValueError(OfaError, ValueError):
+    """A value of a supported type could not be canonicalized.
+
+    The type is right but the value is not representable: a string holding a
+    lone surrogate, which cannot be encoded as UTF-8, or a structure nested
+    past the canonical depth limit.
+    """
