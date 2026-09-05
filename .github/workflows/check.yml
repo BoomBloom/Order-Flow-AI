@@ -40,20 +40,25 @@ jobs:
           # that nothing survives between runs.
           python-version: "3.11"
 
+      - name: Locate the isolated environment outside the checkout
+        # Version reporting treats every untracked path as DIRTY, and the final
+        # status check must observe the checkout rather than ignore CI tooling.
+        run: echo "CI_VENV=${RUNNER_TEMP}/ofa-ci-venv" >> "${GITHUB_ENV}"
+
       - name: Create an isolated environment
         run: |
-          python -m venv .ci-venv
-          .ci-venv/bin/python -m pip install --upgrade pip
+          python -m venv "${CI_VENV}"
+          "${CI_VENV}/bin/python" -m pip install --upgrade pip
 
       - name: Install the package and the pinned development toolchain
-        run: .ci-venv/bin/python -m pip install -e ".[dev]"
+        run: '"${CI_VENV}/bin/python" -m pip install -e ".[dev]"'
 
       - name: Record the installed toolchain
-        run: .ci-venv/bin/python -m pip freeze
+        run: '"${CI_VENV}/bin/python" -m pip freeze'
 
       - name: Verify no market-data SDK reached the environment
         run: |
-          .ci-venv/bin/python - <<'PY'
+          "${CI_VENV}/bin/python" - <<'PY'
           from importlib.util import find_spec
           forbidden = ["databento", "ccxt", "yfinance", "ib_insync", "polygon"]
           present = [name for name in forbidden if find_spec(name) is not None]
@@ -62,23 +67,25 @@ jobs:
           PY
 
       - name: make check
-        run: make check PYTHON=.ci-venv/bin/python
+        run: make check PYTHON="${CI_VENV}/bin/python"
 
       - name: Phase 0 guards
-        run: make guards PYTHON=.ci-venv/bin/python
+        run: make guards PYTHON="${CI_VENV}/bin/python"
 
       - name: ofa version
-        run: .ci-venv/bin/ofa version
+        run: '"${CI_VENV}/bin/ofa" version'
 
       - name: Verify ofa version against the checked-out state
         run: |
-          .ci-venv/bin/python - <<'PY'
+          "${CI_VENV}/bin/python" - <<'PY'
           import json
+          import os
           import subprocess
 
+          ofa = os.path.join(os.environ["CI_VENV"], "bin", "ofa")
           report = json.loads(
               subprocess.run(
-                  [".ci-venv/bin/ofa", "version"],
+                  [ofa, "version"],
                   capture_output=True, text=True, check=True,
               ).stdout
           )
@@ -97,11 +104,11 @@ jobs:
 
       - name: Verify ofa version is deterministic across processes
         run: |
-          .ci-venv/bin/ofa version > /tmp/version-a.json
-          .ci-venv/bin/ofa version > /tmp/version-b.json
+          "${CI_VENV}/bin/ofa" version > /tmp/version-a.json
+          "${CI_VENV}/bin/ofa" version > /tmp/version-b.json
           cmp /tmp/version-a.json /tmp/version-b.json
-          PYTHONHASHSEED=1 .ci-venv/bin/ofa version > /tmp/version-c.json
-          PYTHONHASHSEED=12345 .ci-venv/bin/ofa version > /tmp/version-d.json
+          PYTHONHASHSEED=1 "${CI_VENV}/bin/ofa" version > /tmp/version-c.json
+          PYTHONHASHSEED=12345 "${CI_VENV}/bin/ofa" version > /tmp/version-d.json
           cmp /tmp/version-c.json /tmp/version-d.json
 
       - name: Verify data/ is ignored and untracked

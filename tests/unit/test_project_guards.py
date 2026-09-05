@@ -22,6 +22,7 @@ import pytest
 REPOSITORY: Final = Path(__file__).resolve().parents[2]
 PYPROJECT: Final = REPOSITORY / "pyproject.toml"
 PACKAGE: Final = REPOSITORY / "src" / "ofa"
+CHECK_WORKFLOW: Final = REPOSITORY / ".github" / "workflows" / "check.yml"
 
 
 def _pyproject() -> dict[str, object]:
@@ -223,6 +224,16 @@ def test_generating_the_artifact_leaves_the_repository_untouched(
     after = _git(["status", "--porcelain", "--untracked-files=all"]).stdout
     assert after == before
     assert not (REPOSITORY / "data").exists()
+
+
+def test_ci_environment_is_created_outside_the_checkout() -> None:
+    """CI tooling must not make the source tree dirty before it is verified."""
+    workflow = CHECK_WORKFLOW.read_text(encoding="utf-8")
+    assert ".ci-venv" not in workflow
+    assert "CI_VENV=${RUNNER_TEMP}/ofa-ci-venv" in workflow
+    assert '"${CI_VENV}/bin/python"' in workflow
+    assert '"${CI_VENV}/bin/ofa"' in workflow
+    assert "git status --porcelain --untracked-files=all" in workflow
 
 
 # --------------------------------------------------------------------------
