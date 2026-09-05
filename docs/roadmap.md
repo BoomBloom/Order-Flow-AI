@@ -1,7 +1,8 @@
 # Implementation Roadmap
 
-Status: **proposed.** Phases are sequential. A phase is not started until the
-previous phase meets the Definition of Done in `CLAUDE.md`:
+Status: **Phase 0 complete; later phases proposed.** Phases are sequential. A
+phase is not started until the previous phase meets the Definition of Done in
+`CLAUDE.md`:
 
 1. Implementation exists. 2. Tests exist. 3. Tests pass. 4. Runnable from a
 documented command. 5. Output inspectable. 6. Reproducible. 7. Limitations
@@ -57,7 +58,8 @@ market-data SDK may appear in `pyproject.toml` at Phase 0.**
    processes** — this specifically catches Python's salted `hash()`, which
    would silently break `feature_id` reproducibility forever.
 4. `ofa version` prints the code revision and every schema version.
-5. Two runs of the test suite produce identical artifacts.
+5. Two independent generations of the Phase 0 artifact, in separate
+   interpreter processes under different hash seeds, are byte-identical.
 6. CI asserts `data/` is gitignored and that no market-data SDK is in the
    dependency set.
 7. `docs/limitations.md` carries the current UNVERIFIED register.

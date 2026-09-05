@@ -1,9 +1,11 @@
 # Architecture
 
-Status: **proposed, pre-implementation.** No production code exists yet.
-This document defines the layers, boundaries, and technology choices that
-implementation must follow. Changes here require updating the dependent
-protocol documents in the same commit.
+Status: **Phase 0 core implemented; later layers proposed.** The deterministic
+core primitives and version CLI exist. Data, feature, strategy, simulation,
+validation, and agent layers remain target architecture. This document defines
+the layers, boundaries, and technology choices that implementation must follow.
+Changes here require updating the dependent protocol documents in the same
+commit.
 
 Decisions that are expensive to reverse are enumerated in §16. Everything not
 listed there is intended to be cheap to change.

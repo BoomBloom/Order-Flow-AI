@@ -1,6 +1,8 @@
 # Data Specification
 
-Status: **proposed, pre-implementation.**
+Status: **partially implemented.** Phase 0 provenance and capability primitives
+exist. Canonical events, manifests, storage, replay, and the vendor capability
+matrix remain proposed.
 
 Authority over: canonical event schemas, provenance tiers, per-partition
 capability records, the data capability matrix, and market-specific data

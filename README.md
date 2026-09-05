@@ -10,8 +10,9 @@ is not a near-term goal.
 
 ## Status
 
-**Phase 0 — repository foundation, in progress.** The design contract is
-complete and the deterministic core primitives are being built against it.
+**Phase 0 — repository foundation: COMPLETE.** The seven exit criteria passed
+from a clean checkout in [GitHub Actions run 33959395015](https://github.com/BoomBloom/Order-Flow-AI/actions/runs/33959395015)
+at revision `e69114d0576b07c61a12cc9356eb116235b3b281`.
 
 What exists today, all under `src/ofa/core/`: exact integer fixed-point prices
 with exact-only tick conversion; UTC-nanosecond instants and assigned trading
@@ -22,7 +23,8 @@ command.
 What does not exist: any vendor client, any data, any event store, any
 feature, strategy, simulator, validation engine, or agent. There are **no
 runtime dependencies** — the core is standard library only. See
-[`PLAN.md`](PLAN.md) §2 for what remains in Phase 0.
+[`PLAN.md`](PLAN.md) §2 for delivered milestones and the design gates that
+remain deliberately deferred.
 
 ## Read in this order
 

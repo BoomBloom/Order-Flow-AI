@@ -45,7 +45,7 @@ impressive multi-agent system without it is not success.
   types with the Orchestrator deferred; split policy made per-experiment
   configuration.
 
-**Phase 0 — Repository foundation: COMPLETE, pending the two deferred design gates below.**
+**Phase 0 — Repository foundation: COMPLETE.**
 
 Delivered and committed:
 
@@ -60,7 +60,8 @@ Delivered and committed:
 | M3 | Pinned toolchain, CI, dependency/SDK/`data` guards, deterministic Phase 0 artifact, limitations closure |
 
 All seven Phase 0 exit criteria in `docs/roadmap.md` are now met, verified from
-a clean checkout by CI rather than by inspection.
+a clean checkout by [GitHub Actions run 33959395015](https://github.com/BoomBloom/Order-Flow-AI/actions/runs/33959395015)
+at revision `e69114d0576b07c61a12cc9356eb116235b3b281` rather than by inspection.
 
 Deliberately **not** built in Phase 0, each deferred to a named gate and
 recorded in `docs/limitations.md` §5:
