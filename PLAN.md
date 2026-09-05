@@ -201,7 +201,11 @@ Summaries only. Per-phase detail and the full "Done when" text live in
 
 ### Phase 1 — The data spine (one instrument, one source)
 
-- **Prerequisites:** Phase 0 exit; vendor selected; V1–V6 resolved.
+- **Prerequisites:** Phase 0 exit permits evidence gate 1A. Production work
+  follows sequential gates 1A–1D in `docs/roadmap.md`: approved vendor/sample
+  and V1–V6 evidence, event contract and bounded reference/calendar foundation,
+  acquisition/normalization, then store/replay. Optional capabilities can be
+  verified absent; required unknowns block.
 - **Scope:** one instrument (NQ front month), one real source, bounded date
   range: ingestion, L1a raw checks, normalization with per-field provenance,
   L1b semantic checks, `trade_date`-keyed store with capability records,
@@ -215,7 +219,7 @@ Summaries only. Per-phase detail and the full "Done when" text live in
 ### Phase 2 — Reference data, sessions, calendars, roll
 
 - **Prerequisites:** Phase 1 exit; E3–E4 resolved.
-- **Scope:** instrument registry from vendor definitions; versioned exchange
+- **Scope:** extend Phase 1B's bounded foundation: instrument registry from vendor definitions; versioned exchange
   calendar; `SessionDef` and `trade_date` assignment; roll policy;
   per-contract unadjusted research prices.
 - **Out of scope:** features; assuming the equity-index session model applies
@@ -402,15 +406,16 @@ that separation, which is why it is deferred rather than scheduled.
 
 ## 11. Immediate next action
 
-Phase 0's implementation is complete and verified from a clean checkout. Two
-things gate what follows, and they are independent of each other:
+Phase 0 is complete. Phase 1A public research is recorded in
+`docs/vendor_capability_matrix.md` and `docs/reference_repository_audit.md`.
+The decision package in `docs/phase1_plan.md` is the next working artifact.
 
-1. **Resolve the vendor question (V1–V2).** Phase 1 cannot start without it,
-   and V2 in particular — whether `ts_recv` is supplied historically — decides
-   whether the decision clock is measured or assumed.
-2. **Hold the two deferred design gates**, `Lookback` / `Feature` and the
-   `CanonicalEvent` envelope. Neither blocks Phase 1's data spine; both block
-   Phase 3.
+Vendor evidence may proceed before the CanonicalEvent gate; canonical
+normalization, storage and replay may not. The gate must resolve capture-point
+timing, sequence domains and snapshot handling without silently changing the
+locked ordering or decision clock. Instrument identity and L4 calendar inputs
+must exist before dependent normalization, as sequenced in the roadmap.
 
-Phase 1 may begin once V1–V6 are resolved. Nothing in Phase 0 remains to
-build.
+No vendor/tier, sample access or new dependency is approved. Phase 1A remains
+open. Feature/Lookback stays deferred until its pre-Phase-3 gate; labels remain
+in repository Phase 5. The planning reconciliation does not open those gates.

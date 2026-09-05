@@ -144,6 +144,13 @@ depends on the capability. `Reconstructable` uses the §2 vocabulary strictly.
 
 ## 5. Canonical event schemas
 
+The envelope remains design input under D4, not a finalized contract. Before
+Phase 1B closes, resolve the receive-time capture point (X3), sequence domains
+and missing `ingest_index`, and snapshot initialization/reset semantics listed
+in `phase1_plan.md`. The table does not authorize substituting vendor-capture
+time for consumer availability or sorting synthetic snapshots as ordinary
+events.
+
 Canonical events are frozen, slotted, typed structures — not validated models
 (`docs/architecture.md` §13). Validation happens where data enters, not per
 event.

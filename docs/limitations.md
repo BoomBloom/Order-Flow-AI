@@ -80,7 +80,7 @@ by an implementer picking an answer while writing adjacent code.
 | D2 | **`feature_id` construction.** `docs/architecture.md` §6.4 fixes the format as `name@version#params_hash`, but nothing constructs one. | `docs/roadmap.md` places `feature_id` hashing in Phase 3. Freezing the feature name grammar and version syntax before `features/base.py` and the concrete parameter model exist would lock two things by accident. | Phase 3 |
 | D3 | **`Feature` protocol and `Lookback`.** Neither is declared. `RollPolicy` and `ResetReason` are, because their members are fully specified. | The `Feature` signature names `FeatureParams`, `Lookback`, `StreamGap`, `FeatureUpdate` and `FeatureState`, none of which the specification defines beyond the name. `Lookback` additionally carries a real conflict: `docs/features/TEMPLATE.md` §3 allows event-count, volume or time windows and the worked example uses whole prior sessions, while `docs/research_protocol.md` §4.3 and `docs/validation_protocol.md` require warm-up to be "at least the longest lookback" — a scalar maximum over dimensions that cannot be converted into one another without a data-dependent assumption. | A dedicated Feature Engine / `Lookback` design gate, before Phase 3 |
 | D4 | **`CanonicalEvent` envelope representation.** The protocol is not declared. | Whether `ts_event`, `instrument_id`, `trade_date` and `provenance_id` are raw `int`/`date` or the core value types is a genuine trade-off: the value types exist to stop exactly these fields being confused, but `docs/architecture.md` §16 item 1 forbids per-event validation on a path processing millions of events. Separately, the ordering key `(ts_event, sequence, ingest_index)` names `ingest_index`, which the §5 envelope field table does not list. | An event-representation architecture gate |
-| D5 | **Full dataset manifest.** Phase 0 ships the dependency-free capability primitives only. | `docs/architecture.md` §13 commits manifests to Pydantic v2, and Phase 0 carries zero runtime dependencies. Half the manifest is also unspecifiable today: `source.request` is vendor-shaped, `dataset_id` depends on the storage layout, `session_id` is Phase 2, and `retrieved_at`/`generated_at` are wall-clock reads that the core must never take. | Phase 1, where the vendor is chosen and Pydantic is legitimately at the boundary |
+| D5 | **Full dataset manifest.** Phase 0 ships the dependency-free capability primitives only. | `docs/architecture.md` §13 commits manifests to Pydantic v2, and Phase 0 carries zero runtime dependencies. Half the manifest is also unspecifiable today: `source.request` is vendor-shaped, `dataset_id` depends on the storage layout, `session_id` needs the bounded Phase 1B reference/calendar foundation (extended in Phase 2), and `retrieved_at`/`generated_at` are wall-clock reads that the core must never take. | Phase 1, where the vendor is chosen and Pydantic is legitimately at the boundary |
 | D6 | **Per-capability quality statistics.** `CapabilityEntry` carries `present` and `tier` only. `unknown_share`, `truncation_events`, `assumed_feed_delay_ns` and `assumption_source` from the §3 example are absent. | `unknown_share` is a float in the example, and floats are forbidden in exact paths — representing a ratio exactly is an open decision. The other three come from quality layers (L1a/L1b) or run configuration, none of which exist. | Phase 1, alongside the manifest |
 
 ---
@@ -117,7 +117,22 @@ silently resolved, because choosing a side is an editorial decision.
 
 ---
 
+### Additional open design gates from vendor evidence
+
+| # | Conflict or unresolved semantics | Status |
+| --- | --- | --- |
+| X3 | **Receive-time capture point.** Architecture §9.1 defines `ts_recv` as when we could have known; the data envelope calls it capture/receive time. Vendor-capture time precedes consumer receipt and does not establish decision availability by itself. | Open; resolve at Phase 1B with primary evidence and explicit delay/measurement treatment. No clock change approved. |
+| X4 | **Snapshot and sequence mapping.** Synthetic initialization may carry stale exchange times; packet/channel/instrument sequences are different domains. The fixed ordering tuple alone does not define their canonical mapping. | Open; Phase 1B must preserve raw timestamps/flags, define comparable sequence semantics and causality-safe initialization. See `vendor_capability_matrix.md` and `phase1_plan.md`. |
+| X5 | **Vendor-field ownership.** Architecture's adapter-only vendor awareness, L2 vendor-field-name permission and L1a raw checks need a consistent implementation boundary. | Open; resolve before 1C without allowing vendor objects into higher deterministic layers. |
+
 ## 8. Resolution protocol
+
+The Phase 1 sequencing reconciliation is in `roadmap.md` (1A–1D) and
+`phase1_plan.md`. D4 now explicitly blocks 1B exit and canonical normalization,
+storage and replay, but not vendor evidence gathering. D5/D6 block dependent
+1C metadata. The bounded reference/calendar prerequisite is delivered in 1B
+and extended in Phase 2; no provisional session identifier is permitted.
+No deferred semantic decision is closed by this schedule.
 
 - A row moves out of UNVERIFIED only with a named verifier, a date, and a
   citation to primary documentation (vendor docs, exchange rulebook).

@@ -2,6 +2,13 @@
 
 Status: **research evidence only; no vendor selected; Phase 1 remains gated**
 
+Sequencing clarification (2026-09-06): the staged 1A/1B gates in
+`roadmap.md` and `phase1_plan.md` govern the selection language below. 1A
+establishes source fields, capture points, entitlements and approved scope;
+1B resolves canonical mapping and delay treatment. V2/V6 remain open until
+both are complete. The evidence report does not require implementing the
+canonical contract before gathering vendor evidence.
+
 Research date: **2026-09-05**
 
 Review corrections: **2026-09-06**. Proposed snapshot mappings and downstream-delay treatment below are unresolved design questions, not amendments to the locked ordering tuple or decision-clock contract.

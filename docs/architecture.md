@@ -397,6 +397,11 @@ drives feature updates, then strategy evaluation, then the execution model.
 
 ### 9.1 The decision clock
 
+**Open implementation gate:** vendor-capture time and OFA consumer receipt
+are distinct. Their mapping is unresolved (limitations X3 and
+`phase1_plan.md`); the rule below must not be implemented by silently treating
+vendor capture as consumer availability. Resolve the mapping before 1B closes.
+
 **Decisions are timestamped at `ts_recv`, not `ts_event`.**
 
 `ts_event` is the exchange's action time and orders the stream. `ts_recv` is

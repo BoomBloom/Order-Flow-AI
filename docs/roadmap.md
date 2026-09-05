@@ -36,7 +36,8 @@ features, strategies, simulation, or agents.
   conflict between event-count, volume, time and session windows against the
   requirement that warm-up be "at least the longest lookback". The
   `CanonicalEvent` envelope's typing trades directly against §16 item 1's ban
-  on per-event validation. Each moves to its own design gate before Phase 3;
+  on per-event validation. The event gate closes in Phase 1B; the Feature /
+  Lookback gate closes before Phase 3;
   both are recorded in `docs/limitations.md` §5, D3 and D4.
 - `docs/limitations.md` kept current as the UNVERIFIED register.
 
@@ -80,6 +81,36 @@ ONE REAL INSTRUMENT -> ONE REAL DATA SOURCE -> INGESTION -> NORMALIZATION
 Scope: NQ, one front-month contract, a bounded date range (target ~20
 sessions), trades + BBO at minimum, MBP-10 if the chosen vendor tier allows.
 
+### Sequential gates within Phase 1
+
+Phase 0 must pass before 1A. Each following gate requires its predecessor's
+exit evidence. The user-approved planning reconciliation preserves repository
+phase numbers; master-roadmap Phases 1–4 map to 1A–1D below.
+
+| Gate | Work | Exit evidence before proceeding |
+| --- | --- | --- |
+| 1A — Vendor evidence and decision | Review primary-source capabilities, reference findings, entitlement questions and sample plan. No production adapter. | User-approved source/tier and permitted sample access; source-field and entitlement questions from V1–V6 resolved for the intended scope with documentation and sample evidence. Canonical mapping remains in 1B. An optional capability may be verified absent; unknown required source capabilities block. |
+| 1B — Event and prerequisite design | Resolve D4 before any canonical implementation; review clock capture point, sequence domains, snapshots, missing values, serialization and schema evolution. Design the bounded instrument/session/calendar prerequisite. | Reviewed event decision record and independently tested contract; verified instrument identity, tick grid and L4 calendar assignment for the selected contract/date range. Any locked-semantic change requires explicit approval. |
+| 1C — Acquisition and normalization | Implement approved-source raw acquisition, L1a, normalization and L1b. Resolve D5/D6 and X2 before dependent metadata is written. | Raw checksums, versioned transformations, per-field provenance, quality reports and rejection fixtures; approved dependencies; real bounded data inspected. |
+| 1D — Store, readback and replay | Implement canonical partitions, complete manifests and offline deterministic replay. | All original Phase 1 exit criteria below, including byte-identical replay, capability checks and green CI. |
+
+V2/V6 remain open until both source evidence in 1A and canonical timing/ordering
+decisions in 1B are complete; 1A does not require a future canonical schema.
+
+The bounded prerequisite in 1B uses the existing instrument-registry and L4
+calendar ownership; it is not a second calendar or a timestamp-truncation
+fallback. Verify every session used by Phase 1, including any boundary or
+exception in the selected range. Missing reference evidence blocks dependent
+normalization. Phase 2 extends this same implementation to its full holiday,
+early-close and roll acceptance coverage. This explicitly moves the necessary
+prerequisite slice ahead of its consumers without starting full Phase 2 early.
+
+Planning and open choices are recorded in [phase1_plan.md](phase1_plan.md).
+Neither public research nor this plan closes 1A, selects a vendor, or declares
+the final event/Feature contracts.
+
+### Data-spine implementation scope (after the gates permit it)
+
 - Vendor adapter (the only vendor-aware module), raw capture with checksums
   and sidecar manifests.
 - **L1a** raw structural quality checks; **L1b** post-normalization semantic
@@ -102,6 +133,9 @@ date, and vendor-doc version for the chosen vendor — including **whether
 ---
 
 ## Phase 2 — Reference data, sessions, calendars, roll
+
+Prerequisite: Phase 1 exit. Extend the bounded instrument/calendar foundation
+delivered in 1B; retain one registry and one L4 calendar implementation.
 
 - Instrument registry from vendor definitions.
 - Exchange calendar with holidays and early closes; versioned.
