@@ -96,17 +96,51 @@ status preview included a request-boundary event with `ts_event` at
 map definition or status records into a CanonicalEvent. Vendor-capture
 `ts_recv` remains insufficient evidence of OFA consumer availability.
 
+### Read-only 20-weekday preflight — not a data request
+
+No time-series data was requested in this step. A read-only authenticated
+preflight used the provisional full-Globex window
+`[2026-08-09T22:00:00Z, 2026-09-04T21:00:00Z)` for raw `NQU6`. It covers the
+twenty weekday dates from 2026-08-10 through 2026-09-04; this is a quoting
+window, not a settled OFA `trade_date` or session definition. The metadata
+condition endpoint marked each selected weekday date `available`; it also
+reported 2026-08-29 as `degraded`, a non-selected weekend date within the
+calendar span. Its relevance to any later request remains unverified.
+
+Databento's metadata endpoints returned these account-specific estimates and
+counts for that window. A secret-free external record of the request
+parameters and returned values is retained beside the local sample as
+`PRELIGHT_20_WEEKDAY.json`. The original command's UTC date is recorded; its
+time was not retained and is therefore explicitly `null`, rather than
+reconstructed or guessed.
+
+| Schema | Preflight cost (USD) | Billable bytes | Record count | Scope conclusion |
+| --- | ---: | ---: | ---: | --- |
+| `mbp-1` | 26.488514810801 | 15,801,014,560 | 197,512,682 | Candidate initial L1 stream; includes trades and BBO updates. |
+| `mbp-10` | 54.778543964028 | 117,636,027,424 | 319,663,118 | Optional L2 quote only; not acquired. |
+| `mbo` | 36.758288866282 | 21,927,173,408 | 391,556,668 | Optional L3 quote only; not acquired. |
+| `definition` | 0.000019758940 | 12,480 | 24 | Required reference candidate; estimate is not exact for this non-24-hour-multiple window. |
+| `status` | 0.000022053719 | 5,920 | 148 | Optional control/reference candidate. |
+
+`mbp-1` plus definition and status estimates USD 26.488556623460; the
+analogous MBP-10 and MBO totals are USD 54.778585776687 and USD
+36.758330678941. The quoted billable bytes are not measured local compressed
+storage, and estimates are not invoices. `mbp-1` includes every trade and
+top-of-book update, so a separate `trades` request is intentionally excluded
+from this preliminary L1 budget. This does not settle aggressor provenance,
+timestamp semantics, sequence behavior, licensing, or a source selection.
+
 ## 2. Gate-level findings
 
 | Register item | Public-evidence result | Gate status |
 | --- | --- | --- |
-| **V1 vendor, tier, cost, history** | Databento publishes current plan/history ranges and pay-as-you-go historical access. A limited `GLBX.MDP3`/`NQU6` 24-hour UTC sample has an account-specific preflight estimate and verified local bytes. Rithmic publishes history back to Dec 2011 and a 40 GB/user/week limit but no public price. CME DataMine exposes self-service ordering and purchased-file API access but exact NQ product prices are not public in the reviewed pages. | **OPEN** — no vendor/tier selected; the sample does not establish a 20-session quote, license classification, or general coverage. |
+| **V1 vendor, tier, cost, history** | Databento publishes current plan/history ranges and pay-as-you-go historical access. A limited `GLBX.MDP3`/`NQU6` 24-hour sample has verified local bytes, and a provisional 20-weekday-window preflight has account-specific schema estimates. Rithmic publishes history back to Dec 2011 and a 40 GB/user/week limit but no public price. CME DataMine exposes self-service ordering and purchased-file API access but exact NQ product prices are not public in the reviewed pages. | **OPEN** — no vendor/tier selected; the preflight is not a license classification, invoice, settled session scope, or general coverage proof. |
 | **V2 historical `ts_recv`** | Databento GLBX.MDP3 schemas directly contain Databento capture-server `ts_recv`, and the bounded sample observes it in MBP-1, definition, and status previews. That timestamp proves when Databento captured the packet, not when an OFA process could consume it; it is a lower bound on the eventual OFA decision time unless the architecture deliberately defines the vendor capture point as the decision boundary. Rithmic describes receipt timestamping, but its public historical callback example does not define whether a distinct receipt timestamp is persisted. CME MDP supplies exchange event/send timestamps; reviewed DataMine pages do not establish a historical consumer/capture receipt timestamp. | **OPEN** — sample-field presence does not close the decision-clock boundary. Capture-point metadata, a recorded/stressable downstream-delay model, and historical/live capture-point matching remain required. |
 | **V3 aggressor provenance** | CME Trade Summary directly publishes AggressorSide, including explicit no-aggressor cases. Databento normalizes this into trade `side`, with implied trades potentially `None`. Rithmic public API material does not define the historical trade-side field. | **OPEN** — sample-specific unknown share and exact Rithmic contract remain unverified. |
 | **V4 MBP-10 depth/truncation** | Databento defines event MBP-10 over the top ten price levels, and CME defines MBP as top ten. That structural ten-level bound is not itself a data-loss event. Separate failure modes—transport/recovery gaps, incomplete snapshots, conflation, vendor omission, or inability to restore all ten levels—may truncate the usable book. Neither public source reviewed defines OFA's proposed `truncation_events` statistic or a guarantee covering those modes. | **OPEN** — schema availability and structural depth are verified; completeness is not. Define `truncation_events` operationally before recording it, and verify each loss/recovery mode from sample data and vendor semantics. |
 | **V5 MBO availability/cost** | Databento and CME document full-depth order-event MBO; Rithmic advertises MBO/full depth. Databento's estimator returned USD 1.534271138906 for MBO over the same bounded 24-hour request, but MBO was not acquired. | **OPEN** — availability and one estimate are supported; exact entitlement, sample semantics, and larger-scope cost remain purchase-dependent. |
 | **V6 sequence semantics** | CME packet `MsgSeqNum` is per channel and resets weekly; `RptSeq` is per instrument update. Databento exposes venue `sequence` and `channel_id`, but the exact normalized gap policy for an OFA partition still needs vendor confirmation. The MBP-1 preview exposes `sequence` but no record-level `channel_id`, and includes a duplicate sequence across differing event timestamps. Rithmic public docs do not define its exposed historical sequence domain. | **OPEN — hard ordering/L1a gate.** The sample disproves treating the number as a globally unique key. Before ingestion, pin schema/version and source field; document scope, retain any required channel identity, define reset, wrap, duplicate, gap, recovery/retransmission and snapshot behavior; and establish cross-channel comparability. |
-| **V7 storage volume** | Databento exposes a billable-size endpoint and pricing estimator; CME's entitled-file list returns file sizes. The bounded MBP-1 sample is 190,231,112 compressed bytes for one UTC day; definitions and status add 629 bytes. | **OPEN** — one observed range is not an instrument-day distribution or a scaling estimate. |
+| **V7 storage volume** | Databento exposes a billable-size endpoint and pricing estimator; CME's entitled-file list returns file sizes. The bounded MBP-1 sample is 190,231,112 compressed bytes for one UTC day; definitions and status add 629 bytes. The provisional 20-weekday MBP-1 query estimates 15,801,014,560 billable bytes and 197,512,682 records. | **OPEN** — billable bytes are not measured local storage, and one range is not an instrument-day distribution or scaling estimate. |
 | **V8 live compatibility** | Databento publishes matching historical/live schema families and live replay/recovery behavior; Rithmic publishes live capabilities; direct CME differs materially in protocol and local capture. No live vendor or tier is selected and no actual live capability manifest exists. | **OPEN**, correctly deferred to Phase 10. |
 
 **Gate conclusion:** public research narrows the questions but does not satisfy
@@ -170,6 +204,7 @@ are not safe for general replay.
 
 Primary evidence:
 [trades schema](https://databento.com/docs/schemas-and-data-formats/trades),
+[MBP-1 schema](https://databento.com/docs/schemas-and-data-formats/mbp-1),
 [MBO schema](https://databento.com/docs/schemas-and-data-formats/mbo),
 [MBP-10 schema](https://databento.com/docs/schemas-and-data-formats/mbp-10),
 [status schema](https://databento.com/docs/schemas-and-data-formats/status),
@@ -341,7 +376,7 @@ above. Every other action below still requires explicit user approval.
 
 | Action requiring approval | Why it is required | Evidence to retain after approval |
 | --- | --- | --- |
-| Create/use a Databento account and API key; run authenticated metadata cost/size queries for one specified NQ contract and ~20 sessions across trades, MBP-1, MBP-10, and MBO. | A bounded `NQU6` 24-hour query and MBP-1/definition/status sample were completed on 2026-09-06. It narrows field, size and quote questions but does not close a ~20-session source decision. | Machine-readable quote, request parameters, dataset/version, schema list, coverage range, billable bytes/cost, license classification, and sample DBN metadata. |
+| Create/use a Databento account and API key; run authenticated metadata cost/size queries for one specified NQ contract and a provisional 20-weekday window across MBP-1, MBP-10, and MBO. | A bounded `NQU6` 24-hour query and MBP-1/definition/status sample were completed on 2026-09-06. A provisional 20-weekday preflight is now recorded above. MBP-1 already includes trades, so separate trades are not in this L1 quote. These steps narrow field, size and quote questions but do not close a source decision. | Machine-readable quote, request parameters, dataset/version, schema list, coverage range, billable bytes/cost, license classification, and sample DBN metadata. |
 | Activate Databento live CME or commercial/non-display access. | Requires a plan, subscriber questionnaire, and possibly direct venue agreement/fees. Not needed for Phase 1 historical-only work unless deliberately purchased. | Executed license, subscriber classification, device/use limits, entitlements, effective dates, and live schema test. |
 | Request Rithmic dev kit and written technical answers. | Public documentation is insufficient for V2, V3, V6, historical schema/vintage, and pricing. Request discloses personal/company contact details. | Dev-kit version, field definitions, history coverage matrix, sample records, data license, broker/FCM terms, and written support answers. |
 | Obtain Rithmic production/paper credentials through broker/FCM and pass conformance. | Required by Rithmic for production/paper API access; fees and permissions are account-specific. | Conformance result, server/system, market-data permissions, exchange agreements, per-user limits, and price. |
@@ -386,7 +421,10 @@ a static claim that every date or vintage has the same capability.
   or lock Databento as the source.
 - A Databento authenticated estimate and one real `NQU6` sample were accessed;
   Rithmic and CME DataMine remain unverified by account-specific evidence.
-- Exact ~20-session NQ cost and storage volume remain unknown for every route.
+- A provisional `NQU6` 20-weekday Databento preflight is available, but its
+  billable-byte estimates are not local storage measurements; its cost is not
+  an invoice; its session definition, license classification and source choice
+  remain open. Exact scope/cost/storage are unknown for the other routes.
 - The repository has not resolved whether decision-clock `ts_recv` denotes the
   vendor capture boundary or availability to the OFA consumer. A vendor capture
   timestamp alone does not close V2; capture metadata, downstream-delay stress,

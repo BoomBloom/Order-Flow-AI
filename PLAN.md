@@ -85,7 +85,10 @@ Two documentation conflicts remain open and are recorded rather than silently
 resolved (`docs/limitations.md` §7): the feature storage path, and whether
 `venue` is a top-level manifest field.
 
-No vendor selected. No data acquired. No runtime dependencies declared.
+No vendor selected. No vendor data is committed to this repository. One
+bounded external Databento inspection sample and a read-only preflight are
+recorded in `docs/vendor_capability_matrix.md`; neither selects a vendor nor
+opens implementation. No runtime dependencies declared.
 
 ---
 
@@ -438,6 +441,8 @@ timing, sequence domains and snapshot handling without silently changing the
 locked ordering or decision clock. Instrument identity and L4 calendar inputs
 must exist before dependent normalization, as sequenced in the roadmap.
 
-No vendor/tier, sample access or new dependency is approved. Phase 1A remains
-open. Feature/Lookback stays deferred until its pre-Phase-3 gate; labels remain
-in repository Phase 5. The planning reconciliation does not open those gates.
+No vendor/tier, larger data purchase, or new dependency is approved. One
+bounded sample and read-only metadata preflight are documented evidence only.
+Phase 1A remains open. Feature/Lookback stays deferred until its pre-Phase-3
+gate; labels remain in repository Phase 5. The planning reconciliation does
+not open those gates.

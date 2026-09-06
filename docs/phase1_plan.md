@@ -45,11 +45,15 @@ recheck commercial terms before requesting a quote or access.
 | CME DataMine | Exchange-owned historical products and direct protocol evidence | Purchased-file fields cannot be inferred from live MDP; exact layout, receive timestamps, entitlement, quote and sample are unknown |
 
 Public Databento plan headlines in the evidence report are $199/$1,750/$4,500
-monthly. They are not quotes for a larger Phase 1 range. One user-approved
-Databento sample is now recorded in `vendor_capability_matrix.md`: `NQU6`,
-`GLBX.MDP3`, one UTC day, MBP-1 plus definition and status, with a combined
-preflight estimate of USD 1.147985745222 under a USD 2 cap. The sample does
-not select Databento, establish a 20-session cost, or settle license terms.
+monthly. They are not quotes for a larger Phase 1 range. The vendor matrix now
+records both one user-approved `NQU6`/`GLBX.MDP3` UTC-day MBP-1 sample (plus
+definition and status) and a read-only provisional 20-weekday preflight. The
+preflight estimates MBP-1 at USD 26.488514810801 and 15,801,014,560 billable
+bytes for `[2026-08-09T22:00:00Z, 2026-09-04T21:00:00Z)`. Because MBP-1
+includes trades and top-of-book updates, separate trades are intentionally
+excluded from that preliminary L1 budget. Neither step selects Databento,
+settles `trade_date`/session scope, establishes local storage, or settles
+license terms.
 
 Current user-provided context is historical backtesting to research potential
 edges, Rithmic L2 access through MotiveWave, and approximately USD 125 of
