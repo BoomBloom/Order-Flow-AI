@@ -40,22 +40,22 @@ recheck commercial terms before requesting a quote or access.
 
 | Candidate | What makes it worth evaluating | What blocks selection |
 | --- | --- | --- |
-| Databento GLBX.MDP3 | Detailed public event schemas, vendor-capture timestamps and historical/live schema families | Consumer availability differs from capture time; snapshot and sequence mapping unresolved; exact contract/date coverage, quote, license and sample quality unverified |
+| Databento GLBX.MDP3 | Detailed public event schemas, vendor-capture timestamps and historical/live schema families | Consumer availability differs from capture time; snapshot and sequence mapping unresolved; exact contract/date coverage, quote, license and selection-scope sample quality unverified |
 | Rithmic | Advertised CME depth/MBO and historical access; potentially relevant to existing user access | Trader Pro entitlement does not prove API entitlement; historical receive time, sequence, aggressor, schema vintage and price require technical answers |
 | CME DataMine | Exchange-owned historical products and direct protocol evidence | Purchased-file fields cannot be inferred from live MDP; exact layout, receive timestamps, entitlement, quote and sample are unknown |
 
 Public Databento plan headlines in the evidence report are $199/$1,750/$4,500
-monthly. They are not quotes for this historical sample or a proposed purchase.
-No exact bounded NQ acquisition cost is established for any candidate.
+monthly. They are not quotes for a larger Phase 1 range. One user-approved
+Databento sample is now recorded in `vendor_capability_matrix.md`: `NQU6`,
+`GLBX.MDP3`, one UTC day, MBP-1 plus definition and status, with a combined
+preflight estimate of USD 1.147985745222 under a USD 2 cap. The sample does
+not select Databento, establish a 20-session cost, or settle license terms.
 
-Request from the user, before account-specific work:
-
-1. Intended use: personal/internal research or commercial/distributed outputs;
-   this is an input to vendor licensing confirmation, not a legal determination.
-2. Existing permitted access: vendor/broker/platform and entitlement documents,
-   with secrets omitted. Do not infer API rights from a platform login.
-3. Which candidate may be contacted or used for a quote/sample, and a spending
-   ceiling if paid work is authorized. Candidate evaluation is not vendor lock.
+Current user-provided context is historical backtesting to research potential
+edges, Rithmic L2 access through MotiveWave, and approximately USD 125 of
+Databento credit. No secret, Rithmic API right, vendor lock, or commercial-use
+classification has been recorded. The next spending decision remains a separate
+approval after the bounded evidence review.
 
 Before contact, prepare the exact request: NQ outright contract and date range
 to be agreed, trades+BBO minimum, optional MBP-10/MBO quoted separately, normal
@@ -65,11 +65,16 @@ resets, aggressor unknown cases, reference/status coverage, permitted local
 retention, use/redistribution restrictions, fees, byte volume and API rights.
 Do not send a request, create an account or use credentials without approval.
 
-After approved sample access, inspect raw bytes and hashes, flags, timestamp
-meaning, sequence/recovery behavior, tick grids, event actions and provenance.
+The approved sample has passed SHA-256 and Zstandard integrity checks. A JSON
+preview observed MBP-1 `ts_recv`, `ts_event`, `sequence`, actions, flags and
+nested levels; an NQU6 definition reports a 0.25 minimum price increment; and
+status includes a record whose `ts_event` is 2026-08-11T22:00:00Z. It also
+observed duplicated sequence values across distinct event timestamps, and
+definition/status records whose event times predate the request boundary.
 Record gaps and counterexamples as well as positive evidence. Samples belong
-outside Git under the approved data policy. This bounded evidence inspection
-is not a production adapter or a substitute for schema-design review.
+outside Git under the approved data policy.
+This bounded evidence inspection is not a production adapter or a substitute
+for schema-design review; full details and hashes are in the vendor matrix.
 
 Close 1A only with an explicit source/tier decision and the required V1–V6
 source-field and entitlement evidence for the selected scope. Canonical

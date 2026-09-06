@@ -17,13 +17,13 @@ Two categories:
 
 | # | Item | Blocks | Verified by / date / source |
 | --- | --- | --- | --- |
-| V1 | Vendor identity, tiers, cost, and history depth | Phase 1 | — |
-| V2 | **Whether the chosen vendor supplies `ts_recv` historically** | The decision clock (`architecture.md` §9.1); every backtest | — |
+| V1 | Vendor identity, tiers, cost, and history depth | Phase 1 | Limited Databento `GLBX.MDP3`/`NQU6` sample and estimate observed 2026-09-06; no source/tier selected. See `vendor_capability_matrix.md`. |
+| V2 | **Whether the chosen vendor supplies `ts_recv` historically** | The decision clock (`architecture.md` §9.1); every backtest | Databento field observed in one 2026-09-06 MBP-1 sample; vendor capture point is not OFA availability, so the decision-clock mapping remains open. |
 | V3 | Whether aggressor side is exchange-supplied (`OBSERVED`) for NQ/ES/6E | Every order-flow feature | — |
 | V4 | MBP-10 availability, depth, and truncation behaviour under burst | All liquidity features | — |
-| V5 | MBO availability and cost | Queue-level modelling; Phase 4 liquidity work | — |
-| V6 | Vendor sequence-number semantics: per-channel, resets, documented gap tolerance | L1a checks; the ordering key | — |
-| V7 | Storage volume per instrument-day at each data tier | Scaling beyond one instrument | — |
+| V5 | MBO availability and cost | Queue-level modelling; Phase 4 liquidity work | One bounded Databento MBO estimator quote observed 2026-09-06; no MBO sample or entitlement decision. |
+| V6 | Vendor sequence-number semantics: per-channel, resets, documented gap tolerance | L1a checks; the ordering key | Databento MBP-1 sample exposes duplicate sequence values across distinct event times; semantics remain open. |
+| V7 | Storage volume per instrument-day at each data tier | Scaling beyond one instrument | One Databento MBP-1 UTC-day sample is 190,231,112 compressed bytes; not a scaling estimate. |
 | V8 | Live feed vendor and its capability record relative to the historical one | Phase 10 paper trading | — |
 
 If V2 resolves to "not supplied", the decision clock rests on
