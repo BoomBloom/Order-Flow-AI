@@ -24,7 +24,7 @@ A CI import check asserts that nothing under `features/`, `strategy/`,
 
 What agents may produce: research summaries, operational definitions,
 candidate hypotheses, feature specifications, context-rule specifications,
-critiques, prioritized next experiments.
+critiques, and prioritized next experiments.
 
 What agents may never produce: feature values, signals, orders, backtest
 numbers, statistics, validation verdicts, or a trade decision of any kind.
@@ -43,6 +43,12 @@ record) that a human approves and code executes.
 | Feature Specification Agent (3 profiles) | Active | 8 |
 | Adversarial Agent | Active | 8 |
 | Orchestrator | **Deferred** | Not before 10, and only on evidence |
+
+The three agents are the initial research departments. Data/microstructure,
+experiment-design, risk/execution, and quantitative-validation duties are
+versioned profiles of the two specialist agents, not additional agent types.
+The deterministic engine remains the backtesting, calculation, risk-enforcement
+and execution department.
 
 ### 2.1 Why the three domain agents became one
 
@@ -96,12 +102,28 @@ the human researcher, and the workflow in §4 below is executed manually.
 1. **Why not deterministic?** Surveying literature and competing definitions
    and grading evidence strength is natural-language work.
 2. **Reasoning:** synthesis, evidence grading, hypothesis generation.
-3. **Unique input:** external literature and documentation; the registry of
-   prior definitions and failures.
+3. **Unique input:** external sources and documentation; the registry of prior
+   definitions and failures.
 4. **Typed output:** `EvidenceSummary`, `DefinitionCandidate[]`,
    `HypothesisSpec[]`.
 5. **If deleted:** hypotheses come from folklore; the same idea is retested
    under new names.
+
+#### Research evidence scope
+
+The default research order is trading books and original financial or market
+microstructure papers. For market, exchange, vendor, or entitlement claims,
+the agent uses the relevant primary documentation. Articles, websites,
+YouTube, Reddit, and other social sources are permitted as discovery leads and
+as clearly labelled anecdotal evidence; they do not become independent support
+merely because they repeat one another.
+
+Each material claim identifies its source class, author or publisher, date or
+version, stable location (and timestamp for audiovisual material), the exact
+claim, assumptions, required data capability, and supporting and contradictory
+evidence. When a summary points to an available paper or original source, the
+agent reads that source before assigning an evidence grade. A source can
+motivate a falsifiable hypothesis without establishing that an edge exists.
 
 ### Feature Specification Agent
 
@@ -136,8 +158,11 @@ the human researcher, and the workflow in §4 below is executed manually.
 answering these five questions in a PR that also updates this document. A
 domain difference is answered with a profile. Candidates deferred by design:
 Orchestrator, Data Quality, Strategy Engineer, Statistical Analyst, Execution
-Research, Risk, Literature, Portfolio, Options/GEX. Each is currently a
-deterministic module or a human responsibility; that is the correct default.
+Research, Risk, Literature, Portfolio, Options/GEX. Data/microstructure,
+experiment-design, risk/execution, and quantitative-validation work are the
+initial specialist profiles below; deterministic modules own all calculation
+and enforcement. A separate agent needs a distinct typed contract and
+accountability beyond those profiles.
 
 ---
 
@@ -221,6 +246,24 @@ likely confounders.
 **Provenance obligation:** sweep and pulling classifications are `INFERRED`,
 not `RECONSTRUCTED`, and must be labelled as such. Queue position is
 `SIMULATED` and is never proposed as a feature input.
+
+### 4.4 Adversarial Agent — review profiles
+
+One independent review agent produces `AdversarialReview`, with a profile and
+version recorded on every output. Its profiles preserve departmental
+specialization without turning deterministic work into a committee of agents.
+
+| Profile | Scope | May propose | Deterministic authority retained |
+| --- | --- | --- | --- |
+| `data_microstructure` | Feed capability, exchange/book semantics, sequence/snapshot and provenance assumptions | Missing-capability blocks and falsification fixtures | Raw checks, normalization and capability enforcement |
+| `experiment_design` | Baselines, split policy, hypothesis family, thresholds and multiple-testing exposure | Pre-registration questions and competing tests | Split execution, statistics and verdict |
+| `risk_execution` | Cost, latency, queue-model, exposure, stale-data and failure scenarios | Stress cases and required controls | Risk limits, order decisions, fills and execution controls |
+| `quantitative_validation` | Economic significance, robustness, concentration and alternative explanations | Attacks and further experiments | Metrics, bootstrap, adjustments and validation verdict |
+
+The review invocation must be independent of the invocation that produced the
+hypothesis or specification. It may request an experiment but cannot alter
+runtime risk limits, calculate a result, approve a result on judgement, or
+place an order.
 
 ---
 
@@ -330,7 +373,24 @@ includes which model and which profile said what, when, and at what cost.
 
 ---
 
-## 10. Failure and degradation
+## 10. Controlled agent improvement (later)
+
+Research memory is the first and required form of learning: agents query
+versioned sources, definitions, experiments, failures and reviews before
+proposing new work. It changes available context, not model weights.
+
+Prompt and profile improvements may be evaluated after the registry contains
+enough completed work to compare them against predeclared measures such as
+source traceability, schema validity, duplication avoidance and useful
+falsification findings. Each evaluation records its model, profile, prompt,
+corpus scope and result; an updated profile is adopted only as a new version.
+
+Fine-tuning, reinforcement learning, autonomous self-modification, or any
+other learned agent behavior require a separate architecture and evidence
+gate. They remain outside the deterministic path and cannot edit research
+records, strategy definitions, risk limits, or deployment state on their own.
+
+## 11. Failure and degradation
 
 - Schema validation failure: reject the output, retry once with the
   validation error, then fail the task. Never accept malformed output.

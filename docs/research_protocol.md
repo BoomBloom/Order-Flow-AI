@@ -360,14 +360,19 @@ Agents query this store. They do not substitute for it.
 | Actor | May | May not |
 | --- | --- | --- |
 | Human researcher | Propose ideas, approve status transitions, decide priorities, perform the orchestration role | Edit stored numerical results |
-| Research Agent | Survey evidence, propose definitions and hypotheses, label evidence strength | Assert that an untested idea works |
+| Research Agent | Survey evidence, propose definitions and hypotheses, label evidence strength and source class | Assert that an untested idea works |
 | Feature Specification Agent | Formalize definitions and propose features and context rules, under a domain profile | Compute feature values or emit signals |
-| Adversarial Agent | Interpret the validation verdict, demand further tests | Compute the verdict, or approve on judgement alone |
+| Adversarial Agent | Interpret the validation verdict, demand further tests through independent data/microstructure, experiment-design, risk/execution, or quantitative-validation profiles | Compute the verdict, alter enforced risk controls, or approve on judgement alone |
 | Deterministic engine | Compute everything numerical | Interpret |
 
 The Research Agent labels every claim: `ESTABLISHED`, `SUPPORTED`,
 `PLAUSIBLE`, `SPECULATIVE`, `UNKNOWN`. Trading folklore is never presented as
 empirical fact.
+
+It begins with trading books and original financial or market-microstructure
+research, uses primary documentation for market/feed claims, and records other
+web, audiovisual and social material as source-classified evidence or leads.
+Repeated commentary is not independent confirmation.
 
 The Orchestrator is deferred; until it exists, the human researcher performs
 that role using the registry query CLI (`docs/agent_architecture.md` §2).

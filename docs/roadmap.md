@@ -248,7 +248,12 @@ conclusion back to raw bytes, capability record, and code revision.
 - Typed contracts and schema versioning; agent run logging with profile
   version, token usage, and cost.
 - **Three agents:** Research, Feature Specification (profiles
-  `market_structure`, `order_flow`, `liquidity`), Adversarial.
+  `market_structure`, `order_flow`, `liquidity`), Adversarial (profiles
+  `data_microstructure`, `experiment_design`, `risk_execution`,
+  `quantitative_validation`). Research starts with trading books and original
+  financial or market-microstructure research, uses primary documentation for
+  market/feed claims, and records broader web, audiovisual and social sources
+  with source class and evidence limits.
 - Model routing table wired to roles; human-approval checkpoints enforced;
   human performs the orchestration workflow.
 
@@ -285,5 +290,33 @@ operational, manual orchestration is demonstrably a bottleneck, and a written
 comparison shows what it adds over the human workflow plus the registry CLI.
 
 Explicitly **not** in scope until the loop is proven: live execution,
-autonomous trading, RL, neural prediction, automated strategy optimizers, GEX
+agent-driven trading, RL, neural prediction, automated strategy optimizers, GEX
 subsystem, dashboards, multi-market optimization, crypto, equities.
+
+---
+
+## Phase 11 — Gated deterministic live execution (only after Phase 10)
+
+This is the project's eventual automation destination, not a current
+capability. It executes only a user-approved, immutable deterministic strategy
+version; research agents never select, change or place live trades.
+
+**Prerequisites:** Phase 10 exit; a strategy that completed the validation
+gates; evidence of paper/live parity for its required capabilities; explicit
+user authorization for the selected broker/API, credentials and deployment
+scope; and a dedicated live-execution design review.
+
+**Scope:** isolated live process, deterministic risk and execution semantics,
+credential handling outside the repository, data-health and stale-data
+protection, kill switch, bounded position/exposure/loss controls, order and
+position reconciliation, idempotency, disconnect/recovery behavior, audit
+trail, deployment/rollback procedure, and paper/live divergence monitoring.
+
+**Out of scope:** an agent-driven trade decision, autonomous strategy changes,
+unapproved vendor/broker selection, credentials in the repository, or any
+relaxation of the deterministic hot-path rules.
+
+**Done when:** a deliberate failure test proves each safety control fails
+closed; recorded paper and live sessions can be reconciled and replayed;
+operator controls and recovery are exercised; and the exact deployed strategy,
+risk configuration, capability record and code revision are auditable.

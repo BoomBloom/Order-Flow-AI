@@ -26,7 +26,9 @@ disagree, the authoritative document wins and this file is the bug.
 
 Build a reproducible research laboratory that can take a vague trading idea
 and determine whether it contains a statistically defensible out-of-sample
-edge — and prove it wrong when it does not.
+edge — and prove it wrong when it does not. Its long-term destination is
+user-approved deterministic automation, reached only through the later
+paper-trading and live-execution gates in `docs/roadmap.md`.
 
 Initial markets: **NQ**, **ES**, **6E** (CME futures), in that priority.
 
@@ -95,8 +97,9 @@ These hold in every phase and are not traded away for convenience.
    -> ORDER` contains no LLM inference, no remote model call, no agent
    delegation, and no non-deterministic component — in backtest, replay,
    paper trading, or any future live layer.
-2. **Simulation only.** `LIVE_TRADING = FALSE`. No live execution capability
-   exists or is built during research.
+2. **Simulation only, for current phases.** `LIVE_TRADING = FALSE`. No live
+   execution capability exists or is built during research; the later Phase
+   11 live layer remains separately approved, isolated and deterministic.
 3. **Raw data is immutable.** Derived data is reproducible and disposable.
 4. **No fabricated data.** Synthetic data exists only as labelled test
    fixtures, never as a research dataset. Unavailable information is recorded
@@ -299,8 +302,10 @@ Summaries only. Per-phase detail and the full "Done when" text live in
 
 - **Prerequisites:** Phase 7 exit; P1 resolved.
 - **Scope:** typed contracts and schema versioning; agent run logging with
-  profile version, tokens, cost; the three active agents; model routing;
-  human-approval checkpoints; human-performed orchestration workflow.
+  profile version, tokens, cost; research evidence from books/papers first and
+  broader source-classified material second; the three active agents and their
+  specialist profiles; model routing; human-approval checkpoints;
+  human-performed orchestration workflow.
 - **Out of scope:** the Orchestrator agent; any agent in the hot path; any
   agent producing numbers deterministic code owns.
 - **Exit criteria:** an agent-proposed spec compiles into a real feature
@@ -327,12 +332,26 @@ Summaries only. Per-phase detail and the full "Done when" text live in
   event source, simulated fills, historical/live capability compatibility
   check, replay-divergence alarm). The Orchestrator is considered here at the
   earliest, and only against §8 below.
-- **Out of scope:** live execution, autonomous trading, RL, neural
+- **Out of scope:** live execution, agent-driven trading, RL, neural
   prediction, automated strategy optimizers, GEX subsystem, dashboards,
   multi-market optimization, crypto, equities.
 - **Exit criteria:** per `docs/roadmap.md`; paper trading is accepted only
   when a paper session and a replay of the same recorded session do not
   diverge.
+
+### Phase 11 — Gated deterministic live execution
+
+- **Prerequisites:** Phase 10 exit, a validated and paper-trading-qualified
+  strategy, paper/live capability parity, dedicated design review, and
+  explicit user authorization for the broker/API, credentials and deployment.
+- **Scope:** an isolated, deterministic execution process for immutable,
+  user-approved strategy versions; hard risk controls, data-health checks,
+  reconciliation, recovery and auditability.
+- **Out of scope:** agent trade decisions, autonomous strategy changes, and
+  any agent or network dependency in the deterministic hot path.
+- **Exit criteria:** all live safety controls demonstrably fail closed;
+  paper/live sessions reconcile and replay; deployed code, strategy, risk and
+  capability versions are auditable.
 
 ---
 
@@ -359,7 +378,7 @@ the human researcher.
 
 ---
 
-## 9. Deferred: AI Traders
+## 9. Deferred: agent-driven AI traders
 
 **Status: deferred indefinitely. Does not exist and is not designed.**
 
@@ -367,9 +386,12 @@ An *AI Trader* means any LLM or learned model that generates, selects, or
 influences a trade decision at decision time. This is distinct from the
 research agents, which never touch a decision.
 
-This is not a new decision — it follows from the hot-path boundary (§3.1) and
-from the existing prohibition on autonomous trading, reinforcement learning,
-and neural prediction models in `CLAUDE.md` and `docs/roadmap.md`.
+This is distinct from the planned Phase 11 deterministic live layer, which
+executes only a user-approved, versioned deterministic strategy and retains
+deterministic risk and execution. The distinction follows from the hot-path
+boundary (§3.1) and the existing prohibition on agent-driven decisions,
+reinforcement learning, and neural prediction models in `CLAUDE.md` and
+`docs/roadmap.md`.
 
 Deferral conditions:
 
@@ -389,13 +411,13 @@ proposed, it starts from the boundary, not from an exception to it.
 
 | | Research agents | AI traders | Deterministic risk / execution |
 | --- | --- | --- | --- |
-| **Exists?** | Phase 8 | No — deferred (§9) | Phase 5 (simulated); live layer not built |
+| **Exists?** | Phase 8 | No — deferred (§9) | Phase 5 (simulated); Phase 11 only after gates |
 | **Runs when?** | Offline, non-time-critical | Would run at decision time | Decision time, in the hot path |
 | **Uses a model?** | Yes | Would | **Never** |
 | **Determinism** | Not required | — | Required; byte-reproducible |
 | **Produces** | Typed proposals, definitions, critiques | Would produce trade decisions | Signals, risk decisions, orders, fills, accounting |
 | **May produce numbers deterministic code owns?** | No | — | It *is* the deterministic code |
-| **May place a trade?** | No | — | Simulated only; live requires an isolated future layer |
+| **May place a trade?** | No | — | Simulated until Phase 11; live requires an isolated approved layer |
 | **Authority** | `docs/agent_architecture.md` | §9 above | `docs/architecture.md` §7–§9 |
 
 The distinction that matters: research agents advise *what to test*;

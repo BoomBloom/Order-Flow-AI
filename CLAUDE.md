@@ -13,9 +13,9 @@ A quantitative research laboratory for discovering and validating trading
 hypotheses using market structure, order flow, liquidity, and market
 microstructure data.
 
-This is **not** an autonomous trading bot. The deliverable is a reproducible
-research apparatus that can decide whether a claimed edge is statistically
-defensible out of sample.
+This is **not** an agent-driven autonomous trading bot. The current deliverable
+is a reproducible research apparatus that can decide whether a claimed edge is
+statistically defensible out of sample.
 
 Initial markets (in priority order): **NQ**, **ES**, **6E** (CME futures).
 Future markets: BTC, ETH, US equities, additional futures. Do not build for
@@ -190,7 +190,7 @@ them is a project-level decision, not an implementation detail.
 
 Three active agent types:
 
-1. **Research Agent** — literature, evidence grading, hypothesis generation.
+1. **Research Agent** — evidence research and grading, hypothesis generation.
 2. **Feature Specification Agent** — operationalizes ambiguous concepts, with
    three versioned domain profiles: `market_structure`, `order_flow`,
    `liquidity`.
@@ -217,6 +217,12 @@ existing agent. Question 5 must be answered without appealing to tidiness.
 Agents communicate through **versioned typed schemas**, not free prose.
 Agents never place trades and never produce numbers that deterministic code
 could produce. Full detail: `docs/agent_architecture.md`.
+
+The Research Agent begins with trading books and original financial or market
+microstructure research, then expands to exchange documentation, professional
+material, articles, websites, video, and social sources. A source lead is not
+evidence of an edge: the source type, date, original location, claim, and
+contradictory evidence are recorded in its typed output.
 
 ---
 
@@ -403,11 +409,15 @@ Deterministic quantitative calculations must not call a model at all.
 
 Until the deterministic research loop is validated end to end, do not build:
 
-live execution, autonomous trading, reinforcement learning, neural
+live execution, agent-driven trading, reinforcement learning, neural
 prediction models, automated strategy optimizers, a GEX subsystem, a complex
 dashboard/UI, multi-market optimization, or the Orchestrator agent.
 
 These are later phases. See `docs/roadmap.md`.
+
+The roadmap's later live-execution phase is for deterministic, human-approved
+strategy versions only. It does not authorize agent-driven trading or remove
+the separate approval and safety gates for live execution.
 
 ---
 
